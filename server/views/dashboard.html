@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>ChatGPT & Gemini Bridge - Multi-Account Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070a12;
+      --card-bg: rgba(18, 25, 42, 0.75);
+      --card-hover: rgba(26, 36, 61, 0.85);
+      --border: rgba(56, 189, 248, 0.12);
+      --border-strong: rgba(56, 189, 248, 0.28);
+      --primary: #38bdf8;
+      --accent: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --purple: #a855f7;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 24px;
+      background-image: radial-gradient(circle at 12% 10%, rgba(56, 189, 248, 0.08) 0%, transparent 45%),
+                        radial-gradient(circle at 88% 85%, rgba(16, 185, 129, 0.08) 0%, transparent 45%);
+    }
+    .container { max-width: 1180px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .title-group h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      letter-spacing: -0.5px;
+    }
+    .title-group p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-online {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+    }
+    .badge-offline {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+    .badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+    }
+    .tag {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .tag-chatgpt { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .tag-gemini { background: rgba(56, 189, 248, 0.15); color: #60a5fa; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .tag-worker { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+    .tag-idle { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
+    .tag-busy { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      backdrop-filter: blur(12px);
+      transition: all 0.2s ease;
+    }
+    .card:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-2px);
+    }
+    .card h3 {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .card .val {
+      font-size: 26px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      color: #fff;
+    }
+    .card .sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      backdrop-filter: blur(12px);
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .panel h2 {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+    }
+    .panel-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .view-switcher {
+      display: inline-flex;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      gap: 4px;
+    }
+    .tab-btn {
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.2);
+      color: var(--primary);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 13px;
+    }
+    th {
+      text-align: left;
+      padding: 12px 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(15, 23, 42, 0.4);
+    }
+    th:first-child { border-top-left-radius: 8px; }
+    th:last-child { border-top-right-radius: 8px; }
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: #cbd5e1;
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+    .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+    .input-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    select.input-field { max-width: 170px; }
+    .input-field {
+      flex: 1;
+      min-width: 160px;
+      background: #0b1120;
+      border: 1px solid #27354f;
+      color: #fff;
+      padding: 11px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-field:focus { border-color: var(--primary); }
+    .btn {
+      background: var(--primary);
+      color: #070a12;
+      border: none;
+      padding: 11px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover { background: #7dd3fc; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    .btn-danger:hover { background: #ef4444; color: #fff; }
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
+
+    pre {
+      background: #050811;
+      border: 1px solid #1e293b;
+      padding: 16px;
+      border-radius: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: #cbd5e1;
+      max-height: 280px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .empty-placeholder {
+      text-align: center;
+      padding: 24px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title-group">
+        <h1>🚀 ChatGPT & Gemini Multi-Account Bridge</h1>
+        <p>Quản lý tập trung theo Tài Khoản Đăng Nhập, điều phối cụm trình duyệt & vị trí Session</p>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button id="clearQueueBtn" class="btn btn-danger">🗑️ Clear Queue</button>
+        <div id="status-badge" class="badge badge-offline">
+          <span class="badge-dot"></span>
+          <span id="status-text">Đang kiểm tra...</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h3>ACCOUNTS ONLINE</h3>
+        <div class="val" id="metric-accounts" style="color:var(--accent);">0</div>
+        <div class="sub">Tài khoản AI đang sẵn sàng</div>
+      </div>
+      <div class="card">
+        <h3>BROWSERS ONLINE</h3>
+        <div class="val" id="metric-workers" style="color:var(--primary);">0</div>
+        <div class="sub">Trình duyệt kết nối</div>
+      </div>
+      <div class="card">
+        <h3>QUEUE PENDING</h3>
+        <div class="val" id="metric-queue">0</div>
+        <div class="sub">Hàng đợi chờ xử lý</div>
+      </div>
+      <div class="card">
+        <h3>ACTIVE SESSIONS</h3>
+        <div class="val" id="metric-sessions">0</div>
+        <div class="sub">Phiên hội thoại quản lý</div>
+      </div>
+      <div class="card">
+        <h3>TOTAL COMPLETED</h3>
+        <div class="val" id="metric-completed">0</div>
+        <div class="sub">Tác vụ hoàn tất</div>
+      </div>
+      <div class="card">
+        <h3>AVG LATENCY</h3>
+        <div class="val" id="metric-latency">0s</div>
+        <div class="sub">Thời gian sinh phản hồi</div>
+      </div>
+    </div>
+
+    <!-- PANEL 1: DANH SÁCH TÀI KHOẢN ĐĂNG NHẬP / WORKER POOL -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2 id="poolTableTitle">👤 Danh Sách Tài Khoản Đăng Nhập (Accounts Pool)</h2>
+        <div class="panel-actions">
+          <div class="view-switcher">
+            <button id="btnViewAccounts" class="tab-btn active">👤 Xem Theo Tài Khoản</button>
+            <button id="btnViewBrowsers" class="tab-btn">🌐 Xem Theo Trình Duyệt</button>
+          </div>
+          <span class="tag tag-worker" id="pool-count-badge">0 Accounts Active</span>
+        </div>
+      </div>
+
+      <!-- VIEW 1: BẢNG TÀI KHOẢN ĐĂNG NHẬP (MẶC ĐỊNH) -->
+      <div id="viewAccountsContainer" style="overflow-x:auto;">
+        <table id="accountsTable">
+          <thead>
+            <tr>
+              <th>Tài Khoản AI (Tên / Email)</th>
+              <th>Nền Tảng</th>
+              <th>Trình Duyệt & OS Host</th>
+              <th>Trạng Thái Hoạt Động</th>
+              <th>Đã Xử Lý</th>
+              <th>Thời Gian Online</th>
+            </tr>
+          </thead>
+          <tbody id="accountsBody">
+            <tr><td colspan="6" class="empty-placeholder">Chưa có tài khoản nào kết nối qua Extension...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- VIEW 2: BẢNG CỤM TRÌNH DUYỆT WORKER POOL -->
+      <div id="viewBrowsersContainer" style="overflow-x:auto; display:none;">
+        <table id="workersTable">
+          <thead>
+            <tr>
+              <th>Tên Trình Duyệt / Worker</th>
+              <th>Tài Khoản Đăng Nhập (Accounts)</th>
+              <th>Worker ID</th>
+              <th>Trạng Thái Hoạt Động</th>
+              <th>Nền Tảng Hỗ Trợ</th>
+              <th>Đã Hoàn Tất</th>
+              <th>Thời Gian Chạy</th>
+            </tr>
+          </thead>
+          <tbody id="workersBody">
+            <tr><td colspan="7" class="empty-placeholder">Chưa có trình duyệt nào kết nối qua Extension WebSocket...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PANEL 2: VỊ TRÍ VÀ THỐNG KÊ SESSION -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2>📍 Bản Đồ Phân Bổ Session & Vị Trí Tài Khoản (Session Location)</h2>
+        <div class="panel-actions">
+          <button id="clearSessionsBtn" class="btn btn-danger btn-sm">🗑️ Xóa Tất Cả Sessions</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="sessionsTable">
+          <thead>
+            <tr>
+              <th>Session ID</th>
+              <th>Provider</th>
+              <th>Tài Khoản Đang Phục Vụ (Account)</th>
+              <th>Trình Duyệt Quản Lý (Browser Host)</th>
+              <th>Lượt Hỏi (Turn)</th>
+              <th>Ước Tính Tokens</th>
+              <th>Hoạt Động Cuối</th>
+              <th>Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody id="sessionsBody">
+            <tr><td colspan="8" class="empty-placeholder">Chưa có session nào được tạo trong phiên này...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PANEL 3: KIỂM THỬ TRỰC TIẾP & MULTIMODAL VISION -->
+    <div class="panel" id="liveTestPanel" style="transition: border-color 0.2s, background-color 0.2s; position:relative;">
+      <div class="panel-header">
+        <h2>⚡ Trực Tiếp Kiểm Thử (Live Prompt Test & Multimodal Vision)</h2>
+        <span id="visionReadyBadge" style="display:none; font-size:12px; background:rgba(16,185,129,0.2); color:#34d399; border:1px solid rgba(16,185,129,0.4); border-radius:12px; padding:3px 10px; font-weight:600;">
+          🖼️ Ảnh đã sẵn sàng gửi (Vision)
+        </span>
+      </div>
+
+      <div class="input-row">
+        <select id="providerSelect" class="input-field">
+          <option value="chatgpt">ChatGPT Web</option>
+          <option value="gemini" selected>Google Gemini</option>
+        </select>
+        <input type="text" id="sessionIdInput" class="input-field" placeholder="Session ID (Để trống = Tạo ngẫu nhiên)" style="max-width:240px;">
+        <input type="text" id="promptInput" class="input-field" placeholder="Nhập câu hỏi hoặc dán ảnh (Ctrl+V) trực tiếp..." value="Hãy phân tích bức ảnh này giúp tôi">
+        <input type="file" id="imageFileInput" accept="image/*" style="display:none;">
+        <button type="button" id="uploadImageBtn" class="btn" style="background:#1e293b; color:#38bdf8; border:1px solid #334155;">🖼️ Đính Kèm Ảnh</button>
+        <button id="sendBtn" class="btn">🚀 Gửi (Stream SSE)</button>
+      </div>
+
+      <!-- Helper hướng dẫn thao tác Vision -->
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+        <span>💡 <b>Hỗ trợ Vision:</b> Nhấn <kbd style="background:#1e293b; border:1px solid #334155; padding:1px 5px; border-radius:4px; font-size:11px; color:#38bdf8;">Ctrl+V</kbd> ở bất kỳ đâu trên trang để dán ảnh, kéo thả file ảnh vào khung này, hoặc bấm nút <b>"🖼️ Đính Kèm Ảnh"</b>.</span>
+      </div>
+
+      <!-- Preview ảnh đính kèm nổi bật -->
+      <div id="imagePreviewContainer" style="display:none; margin-bottom:14px; align-items:center; gap:14px; background:linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.7)); border:1.5px solid #38bdf8; border-radius:10px; padding:10px 16px; width:fit-content; box-shadow:0 4px 16px rgba(56,189,248,0.15);">
+        <img id="imagePreviewThumb" src="" alt="Thumbnail" style="max-height:75px; max-width:110px; border-radius:6px; object-fit:contain; background:#000; border:1px solid #334155; cursor:pointer;" title="Bấm để xem ảnh phóng to">
+        <div style="font-size:12px;">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px;">
+            <span style="color:#38bdf8; font-weight:700;">ĐÃ ĐÍNH KÈM:</span>
+            <span id="imagePreviewName" style="font-weight:600; color:#fff; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+          </div>
+          <div id="imagePreviewSize" style="color:var(--text-muted); font-size:11px;"></div>
+        </div>
+        <button type="button" id="removeImageBtn" class="btn btn-danger btn-sm" style="margin-left:10px;">❌ Bỏ ảnh</button>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <span id="testMeta" style="font-size:12px; color:var(--text-muted); font-family:'JetBrains Mono', monospace;"></span>
+      </div>
+      <pre id="outputBox">// Kết quả phản hồi thời gian thực sẽ hiển thị tại đây...</pre>
+    </div>
+  </div>
+
+  <script>
+    let currentViewMode = 'accounts'; // 'accounts' | 'browsers'
+
+    const btnViewAccounts = document.getElementById('btnViewAccounts');
+    const btnViewBrowsers = document.getElementById('btnViewBrowsers');
+    const viewAccountsContainer = document.getElementById('viewAccountsContainer');
+    const viewBrowsersContainer = document.getElementById('viewBrowsersContainer');
+    const poolTableTitle = document.getElementById('poolTableTitle');
+
+    btnViewAccounts.addEventListener('click', () => {
+      currentViewMode = 'accounts';
+      btnViewAccounts.classList.add('active');
+      btnViewBrowsers.classList.remove('active');
+      viewAccountsContainer.style.display = 'block';
+      viewBrowsersContainer.style.display = 'none';
+      poolTableTitle.innerText = '👤 Danh Sách Tài Khoản Đăng Nhập (Accounts Pool)';
+      updateStatus();
+    });
+
+    btnViewBrowsers.addEventListener('click', () => {
+      currentViewMode = 'browsers';
+      btnViewBrowsers.classList.add('active');
+      btnViewAccounts.classList.remove('active');
+      viewAccountsContainer.style.display = 'none';
+      viewBrowsersContainer.style.display = 'block';
+      poolTableTitle.innerText = '🌐 Cụm Trình Duyệt Thực Thi (Worker Pool)';
+      updateStatus();
+    });
+
+    function formatRelativeTime(isoString) {
+      if (!isoString) return '-';
+      const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+      if (diff < 5) return 'Vừa xong';
+      if (diff < 60) return `${diff}s trước`;
+      if (diff < 3600) return `${Math.floor(diff / 60)}m trước`;
+      return `${Math.floor(diff / 3600)}h trước`;
+    }
+
+    function formatDuration(sec) {
+      if (!sec || sec < 0) return '0s';
+      if (sec < 60) return `${sec}s`;
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}m ${s}s`;
+    }
+
+    async function updateStatus() {
+      try {
+        const res = await fetch('/status');
+        const data = await res.json();
+
+        const workers = Array.isArray(data.workers) ? data.workers : [];
+        const accounts = Array.isArray(data.accounts) ? data.accounts : [];
+        const isOnline = workers.length > 0;
+
+        const readyAccounts = accounts.filter(a => a.status !== 'closed' && a.status !== 'offline');
+
+        // 1. Badge trạng thái kết nối
+        const badge = document.getElementById('status-badge');
+        const statusText = document.getElementById('status-text');
+        if (isOnline) {
+          badge.className = 'badge badge-online';
+          statusText.innerText = `${readyAccounts.length}/${accounts.length} Tab Online (${workers.length} Browser)`;
+        } else {
+          badge.className = 'badge badge-offline';
+          statusText.innerText = 'Chờ Extension';
+        }
+
+        // 2. Metrics cards
+        document.getElementById('metric-accounts').innerText = `${readyAccounts.length}/${accounts.length}`;
+        document.getElementById('metric-workers').innerText = workers.length;
+        document.getElementById('metric-queue').innerText = data.queueLength || 0;
+        document.getElementById('metric-sessions').innerText = data.totalActiveSessions || 0;
+        document.getElementById('metric-completed').innerText = data.stats?.totalCompleted || 0;
+        document.getElementById('metric-latency').innerText = ((data.stats?.avgExecutionTimeMs || 0) / 1000).toFixed(1) + 's';
+
+        document.getElementById('pool-count-badge').innerText = currentViewMode === 'accounts'
+          ? `${readyAccounts.length}/${accounts.length} Tab Đang Mở`
+          : `${workers.length} Trình duyệt Active`;
+
+        // 3. Render Accounts View (Theo Tài Khoản Đăng Nhập)
+        const accountsBody = document.getElementById('accountsBody');
+        if (accounts.length === 0) {
+          accountsBody.innerHTML = '<tr><td colspan="6" class="empty-placeholder">Chưa có tài khoản nào được kết nối qua Extension...</td></tr>';
+        } else {
+          accountsBody.innerHTML = accounts.map(acc => {
+            const isChatGPT = acc.provider === 'chatgpt';
+            const icon = isChatGPT ? '🤖' : '✨';
+            const provBadge = isChatGPT
+              ? '<span class="tag tag-chatgpt">ChatGPT Web</span>'
+              : '<span class="tag tag-gemini">Google Gemini</span>';
+
+            let statusBadge = '<span class="tag tag-idle" style="background:rgba(16,185,129,0.18); color:#34d399; border:1px solid rgba(16,185,129,0.35);">🟢 Sẵn sàng (Tab đang mở)</span>';
+            if (acc.status === 'generating') {
+              statusBadge = `<span class="tag tag-busy">🟡 Đang sinh câu trả lời (${(acc.runningMs / 1000).toFixed(1)}s)</span>`;
+            } else if (acc.status === 'closed') {
+              statusBadge = '<span class="tag" style="background:rgba(239,68,68,0.18); color:#f87171; border:1px solid rgba(239,68,68,0.4); font-weight:700;">🔴 Tab Đã Đóng (0 tab)</span>';
+            } else if (!acc.connected || acc.status === 'offline') {
+              statusBadge = '<span class="tag tag-offline">⚫ Mất kết nối</span>';
+            }
+
+            const osText = acc.os === 'win' ? 'Windows' : acc.os === 'mac' ? 'macOS' : acc.os;
+            const hostDisplay = `<span style="font-weight:600; color:#fff;">${acc.browser} (${osText})</span> <span class="mono" style="color:var(--text-muted); font-size:11px;">[${acc.workerId.slice(-6)}]</span>`;
+
+            return `
+              <tr>
+                <td>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:16px;">${icon}</span>
+                    <div>
+                      <div style="font-weight:700; color:#fff;">${acc.accountName}</div>
+                      ${acc.accountEmail ? `<div style="font-size:11px; color:var(--primary); font-family:'JetBrains Mono',monospace;">${acc.accountEmail}</div>` : ''}
+                    </div>
+                  </div>
+                </td>
+                <td>${provBadge}</td>
+                <td>${hostDisplay}</td>
+                <td>${statusBadge}</td>
+                <td><span class="mono" style="color:var(--accent); font-weight:700;">${acc.completed}</span> <span style="font-size:11px; color:var(--text-muted);">/ lỗi: ${acc.failed}</span></td>
+                <td><span class="mono">${formatDuration(acc.uptimeSeconds)}</span></td>
+              </tr>
+            `;
+          }).join('');
+        }
+
+        // 4. Render Browsers View (Theo Cụm Trình Duyệt)
+        const workersBody = document.getElementById('workersBody');
+        if (workers.length === 0) {
+          workersBody.innerHTML = '<tr><td colspan="7" class="empty-placeholder">Chưa có trình duyệt nào kết nối qua Extension WebSocket...</td></tr>';
+        } else {
+          workersBody.innerHTML = workers.map(w => {
+            const hasChatGPT = w.activeTasks && w.activeTasks.some(t => t.provider === 'chatgpt');
+            const hasGemini = w.activeTasks && w.activeTasks.some(t => t.provider === 'gemini');
+            let statusBadge = '<span class="tag tag-idle">Sẵn sàng (Idle)</span>';
+            if (hasChatGPT && hasGemini) {
+              statusBadge = '<span class="tag tag-busy">Đang sinh ChatGPT + Gemini</span>';
+            } else if (hasChatGPT) {
+              statusBadge = '<span class="tag tag-chatgpt">Đang sinh ChatGPT</span>';
+            } else if (hasGemini) {
+              statusBadge = '<span class="tag tag-gemini">Đang sinh Gemini</span>';
+            }
+
+            const providerTags = (w.providers || []).map(p =>
+              p === 'gemini' ? '<span class="tag tag-gemini">Gemini</span>' : '<span class="tag tag-chatgpt">ChatGPT</span>'
+            ).join(' ');
+
+            const acc = w.accounts || {};
+            const accountBadges = [];
+            if (acc.gemini && (acc.gemini.email || acc.gemini.name)) {
+              accountBadges.push(`<span class="tag tag-gemini">Google: ${acc.gemini.email || acc.gemini.name}</span>`);
+            }
+            if (acc.chatgpt && (acc.chatgpt.name || acc.chatgpt.email)) {
+              accountBadges.push(`<span class="tag tag-chatgpt">OpenAI: ${acc.chatgpt.name || acc.chatgpt.email}</span>`);
+            }
+            if (acc.chromeProfileEmail && !accountBadges.some(b => b.includes(acc.chromeProfileEmail))) {
+              accountBadges.push(`<span class="tag tag-worker">Sync: ${acc.chromeProfileEmail}</span>`);
+            }
+            if (accountBadges.length === 0) {
+              accountBadges.push(`<span style="color:var(--text-muted); font-size:11px;">${acc.browser || 'Browser'}</span>`);
+            }
+
+            return `
+              <tr>
+                <td><strong>${w.name}</strong></td>
+                <td><div style="display:flex; flex-direction:column; gap:4px;">${accountBadges.join('')}</div></td>
+                <td><span class="mono">${w.id}</span></td>
+                <td>${statusBadge}</td>
+                <td>${providerTags || '-'}</td>
+                <td><span class="mono" style="color:var(--accent);">${w.stats?.completed || 0}</span> <span style="font-size:11px; color:var(--text-muted);">/ lỗi: ${w.stats?.failed || 0}</span></td>
+                <td><span class="mono">${formatDuration(w.uptimeSeconds)}</span></td>
+              </tr>
+            `;
+          }).join('');
+        }
+
+        // 5. Render Active Sessions Table kèm Tài khoản Phục Vụ
+        const sessionsBody = document.getElementById('sessionsBody');
+        const sessionList = Array.isArray(data.sessionList) ? data.sessionList : [];
+        if (sessionList.length === 0) {
+          sessionsBody.innerHTML = '<tr><td colspan="8" class="empty-placeholder">Chưa có session nào được tạo trong phiên này...</td></tr>';
+        } else {
+          sessionsBody.innerHTML = sessionList.map(s => {
+            const isChatGPT = s.provider === 'chatgpt';
+            const provTag = isChatGPT
+              ? '<span class="tag tag-chatgpt">ChatGPT</span>'
+              : '<span class="tag tag-gemini">Gemini</span>';
+
+            const accountTag = s.account
+              ? `<span style="font-weight:600; color:#fff;">👤 ${s.account}</span>`
+              : `<span style="color:var(--text-muted); font-size:11px;">Mặc định</span>`;
+
+            const workerHostTag = s.workerId
+              ? `<span class="tag tag-worker">🖥️ ${s.workerName || s.workerId}</span>`
+              : '<span style="color:var(--text-muted); font-size:11px;">Chưa gán</span>';
+
+            const activeTabNotice = (s.isActiveChatGPT || s.isActiveGemini)
+              ? '<span style="color:var(--accent); font-size:11px; margin-left:6px;" title="Tab đang mở sẵn thread này">● Active Tab</span>'
+              : '';
+
+            return `
+              <tr>
+                <td>
+                  <span class="mono" style="font-weight:600; color:#fff;">${s.id}</span>
+                  ${activeTabNotice}
+                </td>
+                <td>${provTag}</td>
+                <td>${accountTag}</td>
+                <td>${workerHostTag}</td>
+                <td><span class="mono">${s.turnCount}</span> <span style="color:var(--text-muted); font-size:11px;">(Recycles: ${s.recycleCount})</span></td>
+                <td><span class="mono" style="color:var(--primary);">${s.totalTokens ? s.totalTokens.toLocaleString() : 0}</span></td>
+                <td style="font-size:12px;">${formatRelativeTime(s.lastActiveAt)}</td>
+                <td>
+                  <button class="btn btn-danger btn-sm" onclick="deleteSingleSession('${s.id}')">Xóa</button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch (e) {}
+    }
+
+    setInterval(updateStatus, 1500);
+    updateStatus();
+
+    async function deleteSingleSession(sessionId) {
+      if (!confirm(`Bạn có chắc chắn muốn xóa session "${sessionId}"?`)) return;
+      try {
+        await fetch(`/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+        updateStatus();
+      } catch (err) {
+        alert('Lỗi xóa session: ' + err.message);
+      }
+    }
+
+    document.getElementById('clearSessionsBtn').addEventListener('click', async () => {
+      if (!confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ các session?')) return;
+      try {
+        await fetch('/sessions/clear', { method: 'POST' });
+        updateStatus();
+      } catch (err) {
+        alert('Lỗi xóa tất cả sessions: ' + err.message);
+      }
+    });
+
+    const clearQueueBtn = document.getElementById('clearQueueBtn');
+    clearQueueBtn.addEventListener('click', async () => {
+      if (!confirm('Bạn có chắc chắn muốn dọn sạch hàng đợi và hủy tác vụ đang chạy?')) return;
+      try {
+        clearQueueBtn.disabled = true;
+        clearQueueBtn.innerText = 'Đang dọn...';
+        const res = await fetch('/queue/clear', { method: 'POST' });
+        const data = await res.json();
+        alert(data.message || 'Hàng đợi đã được dọn sạch!');
+        updateStatus();
+      } catch (err) {
+        alert('Lỗi khi xóa hàng đợi: ' + err.message);
+      } finally {
+        clearQueueBtn.disabled = false;
+        clearQueueBtn.innerText = '🗑️ Clear Queue';
+      }
+    });
+
+    const sendBtn = document.getElementById('sendBtn');
+    const promptInput = document.getElementById('promptInput');
+    const sessionIdInput = document.getElementById('sessionIdInput');
+    const providerSelect = document.getElementById('providerSelect');
+    const outputBox = document.getElementById('outputBox');
+    const testMeta = document.getElementById('testMeta');
+    const liveTestPanel = document.getElementById('liveTestPanel');
+    const imageFileInput = document.getElementById('imageFileInput');
+    const uploadImageBtn = document.getElementById('uploadImageBtn');
+    const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+    const imagePreviewThumb = document.getElementById('imagePreviewThumb');
+    const imagePreviewName = document.getElementById('imagePreviewName');
+    const imagePreviewSize = document.getElementById('imagePreviewSize');
+    const removeImageBtn = document.getElementById('removeImageBtn');
+    const visionReadyBadge = document.getElementById('visionReadyBadge');
+
+    let attachedImageDataUrl = null;
+
+    uploadImageBtn.addEventListener('click', () => {
+      imageFileInput.click();
+    });
+
+    imageFileInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) handleSelectedImage(file);
+    });
+
+    removeImageBtn.addEventListener('click', () => {
+      clearAttachedImage();
+    });
+
+    imagePreviewThumb.addEventListener('click', () => {
+      if (attachedImageDataUrl) {
+        const win = window.open('');
+        win.document.write(`<title>Xem ảnh đính kèm</title><body style="margin:0;background:#0f172a;display:flex;align-items:center;justify-content:center;height:100vh;"><img src="${attachedImageDataUrl}" style="max-width:95vw;max-height:95vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,0.8);"></body>`);
+      }
+    });
+
+    function isImageFile(file) {
+      if (!file) return false;
+      if (file.type && file.type.startsWith('image/')) return true;
+      const name = file.name || '';
+      return /\.(png|jpe?g|webp|gif|bmp|svg|tiff)$/i.test(name);
+    }
+
+    function handleSelectedImage(file) {
+      if (!isImageFile(file)) {
+        alert('Vui lòng chọn hoặc dán file hình ảnh hợp lệ (PNG, JPG, WEBP, GIF)!');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        attachedImageDataUrl = evt.target.result;
+        imagePreviewThumb.src = attachedImageDataUrl;
+        imagePreviewName.innerText = file.name || 'Ảnh dán từ clipboard';
+        const sizeKb = (file.size ? (file.size / 1024).toFixed(1) : (attachedImageDataUrl.length * 0.75 / 1024).toFixed(1));
+        imagePreviewSize.innerText = `${sizeKb} KB`;
+        imagePreviewContainer.style.display = 'flex';
+        visionReadyBadge.style.display = 'inline-block';
+        testMeta.innerText = `🖼️ Đã nạp ảnh thành công (${sizeKb} KB). Sẵn sàng gửi kèm prompt!`;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearAttachedImage() {
+      attachedImageDataUrl = null;
+      imageFileInput.value = '';
+      imagePreviewThumb.src = '';
+      imagePreviewContainer.style.display = 'none';
+      visionReadyBadge.style.display = 'none';
+      testMeta.innerText = '';
+    }
+
+    // 1. HỖ TRỢ DÁN ẢNH TỪ CLIPBOARD (Ctrl+V) TRÊN TOÀN BỘ GIAO DIỆN DASHBOARD
+    window.addEventListener('paste', (e) => {
+      const clipboard = e.clipboardData;
+      if (!clipboard) return;
+
+      // Kiểm tra danh sách files trong clipboard
+      if (clipboard.files && clipboard.files.length > 0) {
+        for (const file of clipboard.files) {
+          if (isImageFile(file)) {
+            e.preventDefault();
+            handleSelectedImage(file);
+            return;
+          }
+        }
+      }
+
+      // Kiểm tra clipboard items (ảnh chụp màn hình, Snipping tool, copy ảnh web)
+      if (clipboard.items && clipboard.items.length > 0) {
+        for (const item of clipboard.items) {
+          if (item.type && item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) {
+              e.preventDefault();
+              handleSelectedImage(file);
+              return;
+            }
+          }
+        }
+      }
+
+      // Kiểm tra chuỗi Data URL Base64 dán vào text
+      const pastedText = clipboard.getData('text')?.trim();
+      if (pastedText && pastedText.startsWith('data:image/')) {
+        e.preventDefault();
+        attachedImageDataUrl = pastedText;
+        imagePreviewThumb.src = attachedImageDataUrl;
+        imagePreviewName.innerText = 'Base64 Image';
+        imagePreviewSize.innerText = `${(pastedText.length * 0.75 / 1024).toFixed(1)} KB`;
+        imagePreviewContainer.style.display = 'flex';
+        visionReadyBadge.style.display = 'inline-block';
+      }
+    });
+
+    // 2. HỖ TRỢ KÉO THẢ FILE ẢNH TRỰC TIẾP VÀO LIVE TEST PANEL (Drag & Drop)
+    liveTestPanel.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      liveTestPanel.style.borderColor = 'var(--primary)';
+      liveTestPanel.style.backgroundColor = 'rgba(56, 189, 248, 0.05)';
+    });
+
+    liveTestPanel.addEventListener('dragleave', () => {
+      liveTestPanel.style.borderColor = 'var(--border)';
+      liveTestPanel.style.backgroundColor = '';
+    });
+
+    liveTestPanel.addEventListener('drop', (e) => {
+      e.preventDefault();
+      liveTestPanel.style.borderColor = 'var(--border)';
+      liveTestPanel.style.backgroundColor = '';
+
+      const dt = e.dataTransfer;
+      if (dt && dt.files && dt.files.length > 0) {
+        for (const file of dt.files) {
+          if (isImageFile(file)) {
+            handleSelectedImage(file);
+            break;
+          }
+        }
+      }
+    });
+
+    sendBtn.addEventListener('click', async () => {
+      const prompt = promptInput.value.trim();
+      const provider = providerSelect.value;
+      const customSessionId = sessionIdInput.value.trim() || undefined;
+
+      if (!prompt && !attachedImageDataUrl) return;
+
+      sendBtn.disabled = true;
+      sendBtn.innerText = 'Đang nhận...';
+      outputBox.innerText = `Connecting to ${provider.toUpperCase()} (Vision Multimodal)...\n`;
+      testMeta.innerText = 'Đang gửi lệnh và hình ảnh tới worker pool...';
+
+      const startTime = Date.now();
+
+      try {
+        const payload = {
+          prompt: prompt || 'Hãy phân tích hình ảnh này giúp tôi.',
+          provider,
+          sessionId: customSessionId,
+          newChat: !customSessionId
+        };
+        if (attachedImageDataUrl) {
+          payload.images = [attachedImageDataUrl];
+        }
+
+        const res = await fetch('/ask/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullAnswer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const rawData = line.slice(6).trim();
+              if (rawData === '[DONE]') break;
+              try {
+                const parsed = JSON.parse(rawData);
+                if (parsed.status === 'session_init') {
+                  testMeta.innerText = `Session: ${parsed.session?.id} | Provider: ${parsed.provider}`;
+                } else if (parsed.fullText) {
+                  fullAnswer = parsed.fullText;
+                  outputBox.innerText = fullAnswer;
+                } else if (parsed.chunk) {
+                  fullAnswer += parsed.chunk;
+                  outputBox.innerText = fullAnswer;
+                } else if (parsed.status === 'done') {
+                  const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+                  const workerInfo = parsed.workerName || parsed.workerId || 'Worker';
+                  testMeta.innerText = `✅ Hoàn thành qua [${workerInfo}] | Thời gian: ${elapsed}s | Session: ${parsed.session?.id || 'N/A'}`;
+                  updateStatus();
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      } catch (err) {
+        outputBox.innerText += '\n❌ Lỗi: ' + err.message;
+        testMeta.innerText = '❌ Lỗi kết nối';
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.innerText = '🚀 Gửi (Stream SSE)';
+        updateStatus();
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "chatgpt-gemini-local-bridge-server",
+  "version": "2.1.0",
+  "description": "Enterprise Local HTTP & WebSocket Bridge for ChatGPT Web and Google Gemini Web",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon --watch . --ext js --ignore tests/ server.js",
+    "test": "node tests/test-runner.js",
+    "test:verify": "node tests/verify-bridge.js",
+    "test:vision": "node tests/test-vision.js",
+    "check": "node -c server.js constants.js websocket.js queue.js session-manager.js image-handler.js config.js errors.js routes/ask.js routes/chat-completions.js routes/sessions.js routes/dashboard.js tests/test-runner.js tests/test-vision.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  },
+  "keywords": [
+    "chatgpt",
+    "gemini",
+    "google-gemini",
+    "chrome-extension",
+    "bridge",
+    "automation",
+    "ai"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

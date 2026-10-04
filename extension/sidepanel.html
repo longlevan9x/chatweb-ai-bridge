@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChatGPT Bridge Console</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo-area">
+        <div class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+        </div>
+        <div>
+          <h1 class="app-title">Bridge Console</h1>
+          <p class="app-subtitle">ChatGPT Web Live Monitor</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-clear-logs" class="btn-icon" title="Xóa toàn bộ log">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18"></path>
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Status Cards -->
+    <div class="status-grid">
+      <div class="status-card">
+        <div class="status-header">
+          <span class="status-label">Local Server</span>
+          <span id="badge-server" class="badge badge-loading">
+            <span class="dot"></span> <span class="badge-text">Đang kết nối...</span>
+          </span>
+        </div>
+        <div class="status-detail" id="server-detail">ws://localhost:9603</div>
+      </div>
+
+      <div class="status-card">
+        <div class="status-header">
+          <span class="status-label">ChatGPT Tab</span>
+          <span id="badge-tab-chatgpt" class="badge badge-loading">
+            <span class="dot"></span> <span class="badge-text">Đang tìm...</span>
+          </span>
+        </div>
+        <div class="status-detail" id="tab-detail-chatgpt">Chưa phát hiện tab</div>
+      </div>
+
+      <div class="status-card">
+        <div class="status-header">
+          <span class="status-label">Gemini Tab</span>
+          <span id="badge-tab-gemini" class="badge badge-loading">
+            <span class="dot"></span> <span class="badge-text">Đang tìm...</span>
+          </span>
+        </div>
+        <div class="status-detail" id="tab-detail-gemini">Chưa phát hiện tab</div>
+      </div>
+    </div>
+
+    <!-- Quick Action Bar -->
+    <div class="action-bar" style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <button id="btn-reconnect" class="btn btn-secondary" style="flex: 1;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+        </svg>
+        Nối lại
+      </button>
+      <button id="btn-open-chatgpt" class="btn btn-secondary" style="flex: 1;">
+        ChatGPT
+      </button>
+      <button id="btn-open-gemini" class="btn btn-secondary" style="flex: 1;">
+        Gemini
+      </button>
+      <button id="btn-test-prompt" class="btn btn-primary" style="flex: 1;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        Hỏi Mẫu
+      </button>
+    </div>
+
+    <!-- Interactive Test Box -->
+    <div class="test-box">
+      <div class="test-input-row" style="display: flex; gap: 6px;">
+        <select id="test-provider-select" style="background: #1e293b; color: #38bdf8; border: 1px solid #334155; border-radius: 6px; padding: 6px 8px; font-size: 12px; outline: none;">
+          <option value="chatgpt">ChatGPT</option>
+          <option value="gemini">Gemini</option>
+        </select>
+        <input type="text" id="test-custom-prompt" placeholder="Nhập câu hỏi test hoặc chọn bên dưới..." value="Giải thích ngắn gọn 2 dòng: Microservices là gì?" style="flex: 1;">
+        <button id="btn-run-custom-test" class="btn btn-primary" style="flex: 0 0 auto; padding: 6px 12px;">Gửi</button>
+      </div>
+      <div class="test-preset-chips">
+        <span class="chip" data-prompt="Giải thích ngắn gọn 2 dòng: Microservices là gì?" data-newchat="true">⚡ Nhanh</span>
+        <span class="chip" data-prompt="Viết 1 hàm JavaScript kiểm tra chuỗi đối xứng (Palindrome)." data-newchat="true">💻 Code JS</span>
+        <span class="chip" data-prompt="Bạn có nhớ câu hỏi trước đó tôi vừa hỏi bạn là gì không?" data-newchat="false">💬 Nối tiếp (Context)</span>
+      </div>
+    </div>
+
+    <!-- Filter & Toolbar -->
+    <div class="log-toolbar">
+      <div class="log-filters">
+        <button class="filter-btn active" data-filter="all">Tất cả</button>
+        <button class="filter-btn" data-filter="step">Tiến trình</button>
+        <button class="filter-btn" data-filter="prompt">Yêu cầu</button>
+        <button class="filter-btn" data-filter="error">Lỗi</button>
+      </div>
+      <label class="auto-scroll-label">
+        <input type="checkbox" id="chk-autoscroll" checked>
+        <span>Tự cuộn</span>
+      </label>
+    </div>
+
+    <!-- Terminal Log Stream -->
+    <div class="terminal-container" id="terminal-container">
+      <div class="terminal-body" id="log-list">
+        <div class="log-entry log-info">
+          <span class="log-time">[--:--:--]</span>
+          <span class="log-tag tag-info">INFO</span>
+          <span class="log-msg">Khởi tạo Side Panel Console. Đang lắng nghe luồng sự kiện...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Stats -->
+    <footer class="footer">
+      <div class="stat-item">
+        <span>Yêu cầu:</span>
+        <strong id="stat-total">0</strong>
+      </div>
+      <div class="stat-item">
+        <span>Thành công:</span>
+        <strong id="stat-success" class="text-success">0</strong>
+      </div>
+      <div class="stat-item">
+        <span>Lỗi:</span>
+        <strong id="stat-failed" class="text-danger">0</strong>
+      </div>
+    </footer>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

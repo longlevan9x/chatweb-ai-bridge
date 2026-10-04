@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>ChatGPT & Gemini Bridge Status</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --accent: #10b981;
+      --danger: #ef4444;
+      --primary: #38bdf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+    .header h1 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .status-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .status-item {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-ok {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-err {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .btn-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 7px 10px;
+      background: #2563eb;
+      color: #fff;
+      text-align: center;
+      border: none;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #1d4ed8; }
+    .btn-secondary { background: #334155; color: #e2e8f0; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-sidepanel { background: #0284c7; color: #fff; }
+    .btn-sidepanel:hover { background: #0369a1; }
+    .tip {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      line-height: 1.4;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2">
+      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+    </svg>
+    <h1>ChatGPT & Gemini Bridge</h1>
+  </div>
+
+  <div class="status-group">
+    <div class="status-item">
+      <span>Local Server (:9603)</span>
+      <span id="server-badge" class="badge badge-err"><span class="dot"></span> Chưa nối</span>
+    </div>
+    <div class="status-item">
+      <span>ChatGPT Web</span>
+      <span id="chatgpt-badge" class="badge badge-err"><span class="dot"></span> Chưa mở</span>
+    </div>
+    <div class="status-item">
+      <span>Google Gemini</span>
+      <span id="gemini-badge" class="badge badge-err"><span class="dot"></span> Chưa mở</span>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button id="btn-reconnect" class="btn btn-secondary" style="flex:1;">🔄 Nối lại</button>
+    <button id="btn-clear-queue" class="btn" style="flex:1.2; background: #ef4444;">🗑️ Clear Queue</button>
+    <button id="btn-open-sidepanel" class="btn btn-sidepanel" style="flex:1;">📊 Console</button>
+  </div>
+
+  <div class="btn-row">
+    <a id="btn-open-chatgpt" href="https://chatgpt.com" target="_blank" class="btn">Mở ChatGPT</a>
+    <a id="btn-open-gemini" href="https://gemini.google.com/app" target="_blank" class="btn" style="background: #7c3aed;">Mở Gemini</a>
+  </div>
+
+  <div class="tip">
+    💡 Cả hai AI đều có thể chạy song song trên cùng 1 server Bridge.
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
