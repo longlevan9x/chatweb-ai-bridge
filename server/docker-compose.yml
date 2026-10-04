@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  bridge-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chatweb-ai-bridge-server
+    restart: unless-stopped
+    ports:
+      - "9603:9603"
+    environment:
+      - NODE_ENV=production
+      - PORT=9603
+      - HOST=0.0.0.0
+      - API_KEY=${API_KEY:-sk-bridge-secret-key-change-me}
+      - WORKER_TOKEN=${WORKER_TOKEN:-worker-secret-token-change-me}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9603/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
