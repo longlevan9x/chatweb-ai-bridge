@@ -7,11 +7,23 @@
 
 const path = require('path');
 
+let defaultPort = 9603;
+try {
+  const bridgeConstants = require('../extension/shared/bridge-constants.js');
+  if (bridgeConstants?.SERVER?.DEFAULT_PORT) {
+    defaultPort = bridgeConstants.SERVER.DEFAULT_PORT;
+  }
+} catch (_) {}
+
 const config = {
   server: {
-    port: parseInt(process.env.PORT, 10) || 9603,
+    port: parseInt(process.env.PORT, 10) || defaultPort,
     host: process.env.HOST || '0.0.0.0',
     bodyLimit: process.env.BODY_LIMIT || '50mb'
+  },
+  auth: {
+    apiKey: process.env.API_KEY || null,
+    workerToken: process.env.WORKER_TOKEN || null
   },
   queue: {
     maxSize: parseInt(process.env.MAX_QUEUE_SIZE, 10) || 200,

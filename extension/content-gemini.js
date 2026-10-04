@@ -4,14 +4,16 @@
  */
 
 (() => {
+  const UTILS = (typeof window !== 'undefined' && window.__BRIDGE_UTILS__) || {};
+
   // Cơ chế phòng vệ: Nhận diện Extension Context còn hợp lệ hay đã bị reload/invalidated
-  function isExtensionValid() {
+  const isExtensionValid = UTILS.isExtensionValid || (() => {
     try {
       return Boolean(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
-    } catch (e) {
+    } catch (_) {
       return false;
     }
-  }
+  });
 
   // Tránh nạp đè nếu script cùng version vẫn còn sống; nếu version mới hơn hoặc script cũ chết thì cho phép nạp mới
   const SCRIPT_VERSION = '1.2.0';
@@ -25,7 +27,7 @@
   console.log('🚀 [Gemini Bridge v1.0] Content Script nạp thành công trên tab Google Gemini.');
 
   // Wrapper gửi tin an toàn tuyệt đối, không bao giờ ném Uncaught Error khi extension reload
-  function safeSendMessage(message) {
+  const safeSendMessage = UTILS.safeSendMessage || ((message) => {
     if (!isExtensionValid()) {
       return Promise.resolve(null);
     }
@@ -35,10 +37,10 @@
         return p.catch(() => null);
       }
       return Promise.resolve(p);
-    } catch (e) {
+    } catch (_) {
       return Promise.resolve(null);
     }
-  }
+  });
 
   // Bộ chọn DOM chính xác cho Google Gemini Web (đã xác thực trực tiếp trên DOM)
   const SELECTORS = {
@@ -280,38 +282,32 @@
     return !isDisabled;
   }
 
-  function queryAny(selectors) {
+  const queryAny = UTILS.queryAny || ((selectors, root = document) => {
     for (const sel of selectors) {
       try {
-        const el = document.querySelector(sel);
+        const el = root.querySelector(sel);
         if (el) return el;
-      } catch (_) {
-        // Selector không hợp lệ hoặc DOM node không thể truy vấn — thử tiếp
-      }
+      } catch (_) {}
     }
     return null;
-  }
+  });
 
-  function queryAllAny(selectors) {
+  const queryAllAny = UTILS.queryAllAny || ((selectors, root = document) => {
     for (const sel of selectors) {
       try {
-        const list = document.querySelectorAll(sel);
+        const list = root.querySelectorAll(sel);
         if (list && list.length > 0) return Array.from(list);
-      } catch (_) {
-        // Selector không hợp lệ hoặc DOM node không thể truy vấn — thử tiếp
-      }
+      } catch (_) {}
     }
     return [];
-  }
+  });
 
   function reportProgress(text) {
     console.log('[Gemini Bridge] ' + text);
     safeSendMessage({ action: 'LOG', text: `[Gemini Tab] ${text}` });
   }
 
-  function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms));
-  }
+  const sleep = UTILS.sleep || ((ms) => new Promise(r => setTimeout(r, ms)));
 
   // Bóc tách text và bảo tồn Code Blocks trong câu trả lời của Gemini
   // Tuân thủ nghiêm ngặt TrustedHTML của Google (dùng TextNode thay vì outerHTML/innerHTML)
@@ -797,8 +793,8 @@
       throw new Error('Không tìm thấy ô nhập câu hỏi trên Google Gemini. Vui lòng kiểm tra tab gemini.google.com.');
     }
 
-    // Chuyển Data URL (Base64) sang File object để nạp vào trang web
-    function dataUrlToFile(dataUrl, defaultName = 'upload.png') {
+    // Chuyển Data URL (Base64) sang File object để nạp vào trang web (tái sử dụng từ UTILS)
+    const dataUrlToFile = UTILS.dataUrlToFile || function(dataUrl, defaultName = 'upload.png') {
       try {
         const parts = dataUrl.split(',');
         if (parts.length < 2) return null;
@@ -817,7 +813,7 @@
         console.log('⚠️ [Gemini Bridge] Lỗi dataUrlToFile:', e.message);
         return null;
       }
-    }
+    };
 
     // Quét tìm tất cả input[type="file"] trong cả DOM thường và các tầng Shadow DOM
     function findAllGeminiFileInputs() {
@@ -1164,97 +1160,24 @@
     }
   });
 
-  // Floating Badge cho tab Gemini (Tuân thủ TrustedHTML)
+  // Floating Badge cho tab Gemini (Tuân thủ TrustedHTML, tái sử dụng UTILS)
   function injectGeminiBadge() {
-    if (document.getElementById('gemini-bridge-floating-btn')) return;
+    if (UTILS.injectFloatingBadge) {
+      UTILS.injectFloatingBadge({
+        id: 'gemini-bridge-floating-btn',
+        labelText: 'Gemini Bridge',
+        dotColor: '#38bdf8',
+        badgeTitle: 'Bấm để mở Bridge Console (Ctrl+Shift+B)',
+        logPrefix: '[Gemini Bridge]'
+      });
+      return;
+    }
 
+    if (document.getElementById('gemini-bridge-floating-btn')) return;
     const btn = document.createElement('div');
     btn.id = 'gemini-bridge-floating-btn';
-    btn.title = 'Bấm để mở Bridge Console (Ctrl+Shift+B)';
-    
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display:flex;align-items:center;gap:6px;';
-    
-    const dot = document.createElement('span');
-    dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:#38bdf8;box-shadow:0 0 6px #38bdf8;';
-    
-    const label = document.createElement('span');
-    label.style.fontWeight = '600';
-    label.textContent = 'Gemini Bridge';
-
-    wrapper.appendChild(dot);
-    wrapper.appendChild(label);
-    btn.appendChild(wrapper);
-    btn.style.cssText = `
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      z-index: 999999;
-      background: #0f172a;
-      color: #38bdf8;
-      border: 1px solid #1e293b;
-      border-radius: 20px;
-      padding: 6px 14px;
-      font-size: 12px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      cursor: pointer;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.45);
-      display: flex;
-      align-items: center;
-      transition: all 0.2s ease;
-      user-select: none;
-    `;
-
-    btn.onmouseenter = () => {
-      try {
-        btn.style.transform = 'translateY(-2px)';
-        btn.style.borderColor = '#38bdf8';
-        btn.style.boxShadow = '0 6px 20px rgba(56,189,248,0.25)';
-      } catch (_) {
-        // DOM hover animation safe fallback
-      }
-    };
-    btn.onmouseleave = () => {
-      try {
-        btn.style.transform = 'translateY(0)';
-        btn.style.borderColor = '#1e293b';
-        btn.style.boxShadow = '0 4px 14px rgba(0,0,0,0.45)';
-      } catch (_) {
-        // DOM hover animation safe fallback
-      }
-    };
-
-    btn.onclick = () => {
-      if (!isExtensionValid()) {
-        label.textContent = 'Extension Reloaded - F5 Trang';
-        dot.style.background = '#ef4444';
-        dot.style.boxShadow = '0 0 6px #ef4444';
-        btn.style.borderColor = '#ef4444';
-        btn.style.color = '#ef4444';
-        setTimeout(() => {
-          window.location.reload();
-        }, 250);
-        return;
-      }
-      safeSendMessage({ action: 'OPEN_SIDEPANEL' });
-    };
-
-    // Watchdog kiểm tra trạng thái Extension định kỳ
-    const contextWatchdog = setInterval(() => {
-      if (!isExtensionValid()) {
-        clearInterval(contextWatchdog);
-        console.log('ℹ️ [Gemini Bridge] Chrome Extension đã được tải lại. Bấm nút nổi để F5 trang.');
-        if (label && dot) {
-          label.textContent = 'Bridge cần F5';
-          dot.style.background = '#f59e0b';
-          dot.style.boxShadow = '0 0 6px #f59e0b';
-          btn.style.borderColor = '#f59e0b';
-          btn.style.color = '#f59e0b';
-          btn.title = 'Extension vừa được nạp lại trong Chrome. Bấm vào đây để tải lại trang.';
-        }
-      }
-    }, 2500);
-
+    btn.textContent = 'Gemini Bridge';
+    btn.onclick = () => safeSendMessage({ action: 'OPEN_SIDEPANEL' });
     document.body.appendChild(btn);
   }
 

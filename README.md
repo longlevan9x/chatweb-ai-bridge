@@ -173,6 +173,41 @@ console.log(data.choices[0].message.content);
 
 ---
 
+## 🌐 Triển Khai Online / VPS & Cấu Hình Bảo Mật
+
+Khi đưa Server lên **VPS Online, Cloud (AWS, DigitalOcean)** hoặc dùng **Cloudflare Tunnel / Ngrok**, hệ thống hỗ trợ mô hình **Reverse WebSocket Worker Pool** cực kỳ an toàn:
+
+### 1. Khởi động Server Online với Bảo Mật
+Thiết lập 2 biến môi trường để bảo vệ API và đường truyền WebSocket:
+```bash
+# Khởi động với API Key cho người dùng và Token cho Worker Extension
+API_KEY=my_secret_api_key_123 WORKER_TOKEN=my_worker_token_456 node server.js
+```
+* **`API_KEY`**: Bắt buộc mọi yêu cầu HTTP (`/v1/chat/completions`, `/ask`, `/sessions`) phải có Header `Authorization: Bearer <API_KEY>`.
+* **`WORKER_TOKEN`**: Chỉ cho phép Extension của bạn kết nối WebSocket làm Worker (ngăn chặn kẻ gian chiếm quyền điều khiển).
+* *Lưu ý:* Nếu không truyền 2 biến trên, server tự động chạy ở chế độ **Dev Mode** (cho phép truy cập tự do trên localhost).
+
+### 2. Cấu hình Extension kết nối tới Server Online
+1. Bấm vào biểu tượng Bridge trên thanh công cụ trình duyệt (Popup).
+2. Tại mục **🌐 Cấu hình Server (Local / Online)**, bấm nút **Sửa**.
+3. Điền thông tin máy chủ của bạn:
+   - **Server URL**: `https://api.yourdomain.com` hoặc `http://123.45.67.89:9603` hoặc URL Cloudflare Tunnel.
+   - **Worker Token**: `my_worker_token_456` (trùng với `WORKER_TOKEN` trên server).
+4. Bấm **💾 Lưu & Kết Nối** ➡️ Extension sẽ lập tức kết nối ra Server Online!
+
+### 3. Gọi API từ bên ngoài có xác thực
+```bash
+curl https://api.yourdomain.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer my_secret_api_key_123" \
+  -d '{
+    "model": "chatgpt",
+    "messages": [{"role": "user", "content": "Xin chào từ xa!"}]
+  }'
+```
+
+---
+
 ## 🧪 Hệ Thống Kiểm Thử Toàn Diện (Interactive Test Runner)
 
 Chỉ cần một lệnh duy nhất trong thư mục `server`:

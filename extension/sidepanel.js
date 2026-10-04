@@ -1,7 +1,5 @@
-/**
- * File: extension/sidepanel.js
- * Logic cho Side Panel Console của ChatGPT Bridge
- */
+const BRIDGE_CONST = (typeof window !== 'undefined' && window.__BRIDGE_CONSTANTS__) || {};
+const DEFAULT_PORT = BRIDGE_CONST.SERVER?.DEFAULT_PORT || 9603;
 
 const logList = document.getElementById('log-list');
 const terminalContainer = document.getElementById('terminal-container');
@@ -101,14 +99,15 @@ function updateStatusUI(data) {
   if (!data) return;
 
   // Trạng thái Server
+  const wsUrl = data.wsUrl || `ws://localhost:${data.serverPort || DEFAULT_PORT}`;
   if (data.serverConnected) {
     badgeServer.className = 'badge badge-ok';
     badgeServer.innerHTML = '<span class="dot"></span> <span class="badge-text">Đã kết nối</span>';
-    serverDetail.textContent = 'ws://localhost:9603 (Open)';
+    serverDetail.textContent = `${wsUrl} (Open)`;
   } else {
     badgeServer.className = 'badge badge-err';
     badgeServer.innerHTML = '<span class="dot"></span> <span class="badge-text">Mất kết nối</span>';
-    serverDetail.textContent = 'Chưa mở node server.js';
+    serverDetail.textContent = `${wsUrl} (Closed)`;
   }
 
   // Trạng thái ChatGPT Tab
@@ -246,8 +245,16 @@ async function runCustomTest(promptText, newChat = true, provider = null) {
     btnTestPrompt.disabled = true;
   }
 
+  let serverHttp = `http://localhost:${DEFAULT_PORT}`;
   try {
-    await fetch('http://localhost:9603/ask', {
+    const status = await new Promise(res => chrome.runtime.sendMessage({ action: 'GET_STATUS' }, res));
+    if (status && status.serverUrl) {
+      serverHttp = status.serverUrl;
+    }
+  } catch (_) {}
+
+  try {
+    await fetch(`${serverHttp}/ask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

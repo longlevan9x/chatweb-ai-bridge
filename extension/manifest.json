@@ -36,14 +36,22 @@
         "*://*.chatgpt.com/*",
         "*://chat.openai.com/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "shared/bridge-constants.js",
+        "shared/bridge-utils.js",
+        "content.js"
+      ],
       "run_at": "document_end"
     },
     {
       "matches": [
         "*://gemini.google.com/*"
       ],
-      "js": ["content-gemini.js"],
+      "js": [
+        "shared/bridge-constants.js",
+        "shared/bridge-utils.js",
+        "content-gemini.js"
+      ],
       "run_at": "document_end"
     }
   ],

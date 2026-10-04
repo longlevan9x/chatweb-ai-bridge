@@ -120,7 +120,7 @@
 
   <div class="status-group">
     <div class="status-item">
-      <span>Local Server (:9603)</span>
+      <span id="server-label">Local Server</span>
       <span id="server-badge" class="badge badge-err"><span class="dot"></span> Chưa nối</span>
     </div>
     <div class="status-item">
@@ -148,6 +148,19 @@
     💡 Cả hai AI đều có thể chạy song song trên cùng 1 server Bridge.
   </div>
 
+  <div style="margin-top: 10px; border-top: 1px solid #334155; padding-top: 8px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:11px; font-weight:600; color:#94a3b8;">🌐 Cấu hình Server (Local / Online)</span>
+      <button id="btn-toggle-settings" style="background:none; border:none; color:#38bdf8; cursor:pointer; font-size:11px; font-weight:600;">Sửa</button>
+    </div>
+    <div id="settings-panel" style="display:none; flex-direction:column; gap:6px; margin-top:8px;">
+      <input type="text" id="input-server-url" placeholder="http://localhost:9603 hoặc https://vps.com" style="background:#0f172a; border:1px solid #334155; color:#f1f5f9; padding:5px 8px; border-radius:6px; font-size:11px; width:100%; box-sizing:border-box;" />
+      <input type="password" id="input-worker-token" placeholder="Worker Token (nếu server online bật auth)" style="background:#0f172a; border:1px solid #334155; color:#f1f5f9; padding:5px 8px; border-radius:6px; font-size:11px; width:100%; box-sizing:border-box;" />
+      <button id="btn-save-server" class="btn" style="background:#0284c7; padding:5px; font-size:11px; width:100%;">💾 Lưu & Kết Nối</button>
+    </div>
+  </div>
+
+  <script src="shared/bridge-constants.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

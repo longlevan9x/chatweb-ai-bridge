@@ -1,12 +1,14 @@
 (() => {
+  const UTILS = (typeof window !== 'undefined' && window.__BRIDGE_UTILS__) || {};
+
   // Cơ chế phòng vệ: Nhận diện Extension Context còn hợp lệ hay đã bị reload/invalidated
-  function isExtensionValid() {
+  const isExtensionValid = UTILS.isExtensionValid || (() => {
     try {
       return Boolean(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
-    } catch (e) {
+    } catch (_) {
       return false;
     }
-  }
+  });
 
   // Tránh nạp đè nếu script cũ vẫn còn sống; nếu script cũ đã chết do reload extension thì cho phép nạp mới
   if (window.__CHATGPT_BRIDGE_LOADED__ && window.__CHATGPT_BRIDGE_IS_ALIVE__ && window.__CHATGPT_BRIDGE_IS_ALIVE__()) {
@@ -19,20 +21,16 @@
   console.log('🚀 [ChatGPT Bridge v2.0] Content Script nạp thành công trên tab ChatGPT.');
 
   // Wrapper gửi tin an toàn tuyệt đối, không bao giờ ném Uncaught Error khi extension reload
-  function safeSendMessage(message) {
-    if (!isExtensionValid()) {
-      return Promise.resolve(null);
-    }
+  const safeSendMessage = UTILS.safeSendMessage || ((message) => {
+    if (!isExtensionValid()) return Promise.resolve(null);
     try {
       const p = chrome.runtime.sendMessage(message);
-      if (p && typeof p.catch === 'function') {
-        return p.catch(() => null);
-      }
+      if (p && typeof p.catch === 'function') return p.catch(() => null);
       return Promise.resolve(p);
-    } catch (e) {
+    } catch (_) {
       return Promise.resolve(null);
     }
-  }
+  });
 
   // Bộ chọn DOM linh hoạt hỗ trợ mọi phiên bản giao diện ChatGPT (home & thread)
   const SELECTORS = {
@@ -74,25 +72,25 @@
   ]
 };
 
-function queryAny(selectors) {
+const queryAny = UTILS.queryAny || ((selectors, root = document) => {
   for (const sel of selectors) {
     try {
-      const el = document.querySelector(sel);
+      const el = root.querySelector(sel);
       if (el) return el;
-    } catch (e) {}
+    } catch (_) {}
   }
   return null;
-}
+});
 
-function queryAllAny(selectors) {
+const queryAllAny = UTILS.queryAllAny || ((selectors, root = document) => {
   for (const sel of selectors) {
     try {
-      const list = document.querySelectorAll(sel);
+      const list = root.querySelectorAll(sel);
       if (list && list.length > 0) return Array.from(list);
-    } catch (e) {}
+    } catch (_) {}
   }
   return [];
-}
+});
 
 // Bóc tách văn bản bảo toàn cấu trúc Markdown & Code blocks
 function extractCleanMarkdown(element) {
@@ -453,8 +451,8 @@ async function handleAskRequest(request) {
   const initialCount = initialItems.length;
   const initialLastText = initialItems.length > 0 ? extractCleanMarkdown(initialItems[initialItems.length - 1]) : '';
 
-  // Chuyển Data URL (Base64) sang File object để nạp vào trang web
-  function dataUrlToFile(dataUrl, defaultName = 'upload.png') {
+  // Chuyển Data URL (Base64) sang File object để nạp vào trang web (tái sử dụng từ UTILS)
+  const dataUrlToFile = UTILS.dataUrlToFile || function(dataUrl, defaultName = 'upload.png') {
     try {
       const parts = dataUrl.split(',');
       if (parts.length < 2) return null;
@@ -473,7 +471,7 @@ async function handleAskRequest(request) {
       console.log('⚠️ [ChatGPT Bridge] Lỗi dataUrlToFile:', e.message);
       return null;
     }
-  }
+  };
 
   // Chờ tiến trình upload ảnh hoàn tất trên ChatGPT
   async function waitForChatGPTImageUpload(maxWaitMs = 12000) {
@@ -718,97 +716,27 @@ function waitForAssistantResponse(request, initialCount, initialLastText) {
   });
 }
 
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
-}
+const sleep = UTILS.sleep || ((ms) => new Promise(r => setTimeout(r, ms)));
 
 // Tạo nút nổi Bridge Console trên giao diện ChatGPT để 1-click mở ngay Sidebar
 function injectFloatingBridgeButton() {
-  if (document.getElementById('chatgpt-bridge-floating-btn')) return;
+  if (UTILS.injectFloatingBadge) {
+    UTILS.injectFloatingBadge({
+      id: 'chatgpt-bridge-floating-btn',
+      labelText: 'Bridge Logs',
+      dotColor: '#10b981',
+      badgeTitle: 'Bấm để mở ChatGPT Bridge Console (hoặc phím tắt Ctrl+Shift+B)',
+      logPrefix: '[ChatGPT Bridge]'
+    });
+    return;
+  }
 
+  // Fallback nếu UTILS chưa kịp nạp
+  if (document.getElementById('chatgpt-bridge-floating-btn')) return;
   const btn = document.createElement('div');
   btn.id = 'chatgpt-bridge-floating-btn';
-  btn.title = 'Bấm để mở ChatGPT Bridge Console (hoặc phím tắt Ctrl+Shift+B)';
-  
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'display:flex;align-items:center;gap:6px;';
-  
-  const dot = document.createElement('span');
-  dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 6px #10b981;';
-  
-  const label = document.createElement('span');
-  label.style.fontWeight = '600';
-  label.textContent = 'Bridge Logs';
-
-  wrapper.appendChild(dot);
-  wrapper.appendChild(label);
-  btn.appendChild(wrapper);
-  btn.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 999999;
-    background: #0f172a;
-    color: #38bdf8;
-    border: 1px solid #334155;
-    border-radius: 20px;
-    padding: 6px 14px;
-    font-size: 12px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    cursor: pointer;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.45);
-    display: flex;
-    align-items: center;
-    transition: all 0.2s ease;
-    user-select: none;
-  `;
-
-  btn.onmouseenter = () => {
-    try {
-      btn.style.transform = 'translateY(-2px)';
-      btn.style.borderColor = '#38bdf8';
-      btn.style.boxShadow = '0 6px 20px rgba(56,189,248,0.25)';
-    } catch (e) {}
-  };
-  btn.onmouseleave = () => {
-    try {
-      btn.style.transform = 'translateY(0)';
-      btn.style.borderColor = '#334155';
-      btn.style.boxShadow = '0 4px 14px rgba(0,0,0,0.45)';
-    } catch (e) {}
-  };
-
-  btn.onclick = () => {
-    if (!isExtensionValid()) {
-      label.textContent = 'Extension Reloaded - F5 Trang';
-      dot.style.background = '#f59e0b';
-      dot.style.boxShadow = '0 0 6px #f59e0b';
-      btn.style.borderColor = '#f59e0b';
-      btn.style.color = '#f59e0b';
-      setTimeout(() => {
-        window.location.reload();
-      }, 250);
-      return;
-    }
-    safeSendMessage({ action: 'OPEN_SIDEPANEL' });
-  };
-
-  // Watchdog kiểm tra trạng thái Extension định kỳ để cập nhật UI tự phục hồi
-  const contextWatchdog = setInterval(() => {
-    if (!isExtensionValid()) {
-      clearInterval(contextWatchdog);
-      console.log('ℹ️ [ChatGPT Bridge] Chrome Extension đã được tải lại. Bấm nút nổi để F5 trang.');
-      if (label && dot) {
-        label.textContent = 'Bridge cần F5';
-        dot.style.background = '#f59e0b';
-        dot.style.boxShadow = '0 0 6px #f59e0b';
-        btn.style.borderColor = '#f59e0b';
-        btn.style.color = '#f59e0b';
-        btn.title = 'Extension vừa được nạp lại trong Chrome. Bấm vào đây để tải lại trang.';
-      }
-    }
-  }, 2500);
-
+  btn.textContent = 'Bridge Logs';
+  btn.onclick = () => safeSendMessage({ action: 'OPEN_SIDEPANEL' });
   document.body.appendChild(btn);
 }
 

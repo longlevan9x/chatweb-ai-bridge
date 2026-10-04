@@ -12,8 +12,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const config = require('../config');
 
-const PORT = process.env.PORT || 9603;
+const PORT = config.server.port;
 const BASE_URL = `http://localhost:${PORT}`;
 
 // Đọc tham số dòng lệnh

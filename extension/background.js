@@ -28,10 +28,84 @@ const PROVIDERS = {
   }
 };
 
+try {
+  importScripts('shared/bridge-constants.js');
+} catch (_) {}
+
+const BRIDGE_CONST = (typeof self !== 'undefined' && self.__BRIDGE_CONSTANTS__) || {};
+
 let socket = null;
-const SERVER_PORT = 9603;
-const SERVER_HTTP = `http://localhost:${SERVER_PORT}/status`;
-const SERVER_WS = `ws://localhost:${SERVER_PORT}`;
+let currentPort = BRIDGE_CONST.SERVER?.DEFAULT_PORT || 9603;
+let currentServerUrl = `http://localhost:${currentPort}`;
+let currentWsUrl = `ws://localhost:${currentPort}`;
+let currentWorkerToken = '';
+
+function parseServerUrl(input) {
+  if (!input) return null;
+  let str = String(input).trim();
+  // Nếu chỉ nhập số port (ví dụ: 9603) -> mặc định localhost
+  if (/^\d+$/.test(str)) {
+    const port = Number(str);
+    return {
+      serverUrl: `http://localhost:${port}`,
+      wsUrl: `ws://localhost:${port}`,
+      port
+    };
+  }
+
+  // Thêm protocol nếu người dùng chỉ gõ domain:port hoặc IP:port
+  if (!str.startsWith('http://') && !str.startsWith('https://') && !str.startsWith('ws://') && !str.startsWith('wss://')) {
+    str = 'http://' + str;
+  }
+
+  try {
+    const url = new URL(str);
+    const isSecure = url.protocol === 'https:' || url.protocol === 'wss:';
+    const httpProto = isSecure ? 'https:' : 'http:';
+    const wsProto = isSecure ? 'wss:' : 'ws:';
+    const host = url.host;
+
+    return {
+      serverUrl: `${httpProto}//${host}`,
+      wsUrl: `${wsProto}//${host}`,
+      port: url.port ? Number(url.port) : (isSecure ? 443 : 80)
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function getServerPort() {
+  return currentPort;
+}
+
+function getServerHttp() {
+  return `${currentServerUrl}/status`;
+}
+
+function getServerWs() {
+  return currentWsUrl;
+}
+
+// Nạp cấu hình Server (URL, Port, Worker Token) từ chrome.storage.local
+chrome.storage.local.get(['custom_server_url', 'custom_server_port', 'custom_worker_token']).then((data) => {
+  if (data.custom_server_url) {
+    const parsed = parseServerUrl(data.custom_server_url);
+    if (parsed) {
+      currentServerUrl = parsed.serverUrl;
+      currentWsUrl = parsed.wsUrl;
+      currentPort = parsed.port;
+    }
+  } else if (data.custom_server_port && Number(data.custom_server_port)) {
+    currentPort = Number(data.custom_server_port);
+    currentServerUrl = `http://localhost:${currentPort}`;
+    currentWsUrl = `ws://localhost:${currentPort}`;
+  }
+  if (data.custom_worker_token) {
+    currentWorkerToken = String(data.custom_worker_token).trim();
+  }
+}).catch(() => {});
+
 let isCheckingOrConnecting = false;
 let retryAttempt = 0;
 
@@ -124,7 +198,7 @@ async function isServerReady() {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1200);
-    const res = await fetch(SERVER_HTTP, {
+    const res = await fetch(getServerHttp(), {
       method: 'GET',
       cache: 'no-store',
       signal: controller.signal
@@ -462,7 +536,10 @@ async function initWebSocket() {
 
   try {
     const identity = await getOrCreateWorkerIdentity();
-    const wsUrl = `${SERVER_WS}?workerId=${encodeURIComponent(identity.workerId)}&workerName=${encodeURIComponent(identity.workerName)}`;
+    let wsUrl = `${getServerWs()}?workerId=${encodeURIComponent(identity.workerId)}&workerName=${encodeURIComponent(identity.workerName)}`;
+    if (currentWorkerToken) {
+      wsUrl += `&token=${encodeURIComponent(currentWorkerToken)}`;
+    }
     socket = new WebSocket(wsUrl);
   } catch (err) {
     scheduleReconnect();
@@ -471,8 +548,8 @@ async function initWebSocket() {
 
   socket.onopen = async () => {
     retryAttempt = 0;
-    console.log('✅ [Bridge BG] Đã kết nối thành công với Local Server tại ' + SERVER_WS);
-    appendLog('info', `Đã kết nối thành công với Local Server (${SERVER_WS})`);
+    console.log('✅ [Bridge BG] Đã kết nối thành công với Local Server tại ' + getServerWs());
+    appendLog('info', `Đã kết nối thành công với Local Server (${getServerWs()})`);
 
     // Gửi thông tin định danh Worker kèm tài khoản và số lượng tab đang mở tới server
     try {
@@ -617,7 +694,7 @@ async function initWebSocket() {
 
   socket.onclose = () => {
     socket = null;
-    appendLog('error', `Mất kết nối với Local Server (${SERVER_WS})`);
+    appendLog('error', `Mất kết nối với Local Server (${getServerWs()})`);
     scheduleReconnect();
   };
 
@@ -684,11 +761,11 @@ async function sendMessageWithAutoInject(tabId, msg, scriptFile = 'content.js') 
     }
   } catch (e) {}
 
-  // Luôn chủ động inject scriptFile để cập nhật version mới nhất nếu mã nguồn thay đổi
+  // Luôn chủ động inject shared utils & scriptFile để cập nhật version mới nhất nếu mã nguồn thay đổi
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: [scriptFile]
+      files: ['shared/bridge-constants.js', 'shared/bridge-utils.js', scriptFile]
     });
     await new Promise(r => setTimeout(r, 200));
   } catch (injectErr) {
@@ -704,7 +781,7 @@ async function sendMessageWithAutoInject(tabId, msg, scriptFile = 'content.js') 
     try {
       await chrome.scripting.executeScript({
         target: { tabId },
-        files: [scriptFile]
+        files: ['shared/bridge-constants.js', 'shared/bridge-utils.js', scriptFile]
       });
       await new Promise(r => setTimeout(r, 300));
     } catch (_) {}
@@ -826,6 +903,65 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   // Hỗ trợ truy vấn trạng thái cho cả ChatGPT và Gemini kèm định danh Worker
+  // Cấu hình Server Online (Hỗ trợ cả URL, Port và Worker Token)
+  if (request.action === 'SET_SERVER_CONFIG') {
+    const rawUrl = request.serverUrl || request.url;
+    const parsed = parseServerUrl(rawUrl);
+    if (!parsed) {
+      sendResponse({ success: false, error: 'Địa chỉ Server URL không hợp lệ' });
+      return true;
+    }
+
+    currentServerUrl = parsed.serverUrl;
+    currentWsUrl = parsed.wsUrl;
+    currentPort = parsed.port;
+    if (typeof request.workerToken === 'string') {
+      currentWorkerToken = request.workerToken.trim();
+    }
+
+    chrome.storage.local.set({
+      custom_server_url: currentServerUrl,
+      custom_server_port: currentPort,
+      custom_worker_token: currentWorkerToken
+    }).catch(() => {});
+
+    if (socket) {
+      try { socket.close(); } catch (_) {}
+      socket = null;
+    }
+    checkAndConnect();
+    sendResponse({
+      success: true,
+      serverUrl: currentServerUrl,
+      wsUrl: currentWsUrl,
+      port: currentPort,
+      hasWorkerToken: Boolean(currentWorkerToken)
+    });
+    return true;
+  }
+
+  if (request.action === 'SET_PORT') {
+    const newPort = parseInt(request.port, 10);
+    if (newPort && newPort > 0 && newPort < 65536) {
+      currentPort = newPort;
+      currentServerUrl = `http://localhost:${currentPort}`;
+      currentWsUrl = `ws://localhost:${currentPort}`;
+      chrome.storage.local.set({
+        custom_server_port: newPort,
+        custom_server_url: currentServerUrl
+      }).catch(() => {});
+      if (socket) {
+        try { socket.close(); } catch (_) {}
+        socket = null;
+      }
+      checkAndConnect();
+      sendResponse({ success: true, port: currentPort, wsUrl: getServerWs(), serverUrl: currentServerUrl });
+    } else {
+      sendResponse({ success: false, error: 'Port không hợp lệ (1 - 65535)' });
+    }
+    return true;
+  }
+
   if (request.action === 'GET_STATUS' || request.action === 'CONNECT_NOW') {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       checkAndConnect();
@@ -839,6 +975,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     ]).then(([chatGptTabs, geminiTabs, identity]) => {
       sendResponse({
         serverConnected: isSocketOpen,
+        serverPort: currentPort,
+        serverUrl: currentServerUrl,
+        wsUrl: getServerWs(),
+        hasWorkerToken: Boolean(currentWorkerToken),
         workerId: identity ? identity.workerId : null,
         workerName: identity ? identity.workerName : 'Browser Worker',
         accounts: workerAccounts,
@@ -851,6 +991,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }).catch(() => {
       sendResponse({
         serverConnected: isSocketOpen,
+        serverPort: currentPort,
+        serverUrl: currentServerUrl,
+        wsUrl: getServerWs(),
+        hasWorkerToken: Boolean(currentWorkerToken),
         workerId: null,
         workerName: 'Browser Worker',
         hasChatGPTTab: false,

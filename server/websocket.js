@@ -10,6 +10,7 @@
  */
 
 const { WebSocketServer } = require('ws');
+const config = require('./config');
 const taskQueue = require('./queue');
 
 let wssInstance = null;
@@ -27,11 +28,20 @@ function setupWebSocket(server) {
   wss.on('connection', (ws, req) => {
     let workerId = null;
     let workerName = null;
+    let token = null;
     try {
       const parsedUrl = new URL(req.url, 'http://localhost');
       workerId = parsedUrl.searchParams.get('workerId');
       workerName = parsedUrl.searchParams.get('workerName');
+      token = parsedUrl.searchParams.get('token');
     } catch (_) {}
+
+    // Bảo mật Online: Kiểm tra Worker Token nếu server được cấu hình WORKER_TOKEN
+    if (config.auth?.workerToken && token !== config.auth.workerToken) {
+      console.error(`⛔ [WebSocket Hub] Từ chối Worker kết nối do Token không hợp lệ (IP: ${req.socket.remoteAddress})`);
+      ws.close(4001, 'Unauthorized Worker Token');
+      return;
+    }
 
     workerId = workerId || ('worker_' + Math.random().toString(36).substring(2, 8));
     workerName = workerName || `Browser #${workerId.slice(-4)}`;

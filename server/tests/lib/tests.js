@@ -18,7 +18,7 @@ async function checkBridgeHealth(quiet = false) {
     const data = await res.json();
     if (!quiet) {
       console.log(`\n${C.bold}📊 Kiểm tra trạng thái hệ thống:${C.reset}`);
-      console.log(`  - Local Server: ${C.green}Đang chạy (:9603)${C.reset}`);
+      console.log(`  - Local Server: ${C.green}Đang chạy (${BASE_URL})${C.reset}`);
       console.log(`  - WebSocket Extension: ${data.connected ? C.green + 'Đã kết nối' : C.red + 'Chưa kết nối (Hãy mở Chrome)'}${C.reset}`);
       console.log(`  - Hàng đợi (Queue): ${data.queueLength} tác vụ | Đang bận: ${data.isBusy ? 'Có' : 'Không'}`);
       console.log(`  - Thống kê: Tổng nhận ${data.stats.totalReceived}, Xong ${data.stats.totalCompleted}, Lỗi ${data.stats.totalFailed}\n`);

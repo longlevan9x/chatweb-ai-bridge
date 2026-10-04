@@ -5,7 +5,9 @@
 
 'use strict';
 
-const BASE_URL = process.env.BRIDGE_URL || 'http://localhost:9603';
+const config = require('../../config');
+
+const BASE_URL = process.env.BRIDGE_URL || `http://localhost:${config.server.port}`;
 
 /** Bảng màu ANSI */
 const C = {

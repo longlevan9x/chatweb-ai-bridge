@@ -35,8 +35,36 @@ app.use((req, res, next) => {
   next();
 });
 
-// 2. Đăng ký các tầng Route Module (Chuẩn chung duy nhất)
+// 2. Bảo mật API Key cho môi trường Online (tự động kích hoạt khi có API_KEY)
+function apiKeyAuthMiddleware(req, res, next) {
+  if (!config.auth?.apiKey) {
+    return next(); // Dev mode (không cấu hình API_KEY): cho phép truy cập tự do
+  }
+
+  const authHeader = req.headers.authorization;
+  let token = null;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7).trim();
+  } else if (req.query && req.query.key) {
+    token = req.query.key;
+  }
+
+  if (!token || token !== config.auth.apiKey) {
+    return res.status(401).json({
+      error: {
+        message: 'Invalid or missing API key. Please provide valid Bearer token in Authorization header.',
+        type: 'invalid_request_error',
+        code: 'invalid_api_key'
+      }
+    });
+  }
+
+  next();
+}
+
+// 3. Đăng ký các tầng Route Module (Dashboard công khai, API bảo vệ bởi Auth)
 app.use(dashboardRouter);
+app.use(apiKeyAuthMiddleware);
 app.use(askRouter);
 app.use('/v1', chatCompletionsRouter);
 app.use(chatCompletionsRouter); // Hỗ trợ cả /chat/completions không cần tiền tố /v1
