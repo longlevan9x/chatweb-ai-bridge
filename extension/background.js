@@ -655,15 +655,12 @@ async function initWebSocket() {
               await new Promise(r => setTimeout(r, 600));
             }
 
-            // Kích hoạt tab và cửa sổ để đảm bảo input events và editor nhận focus
+            // Kích hoạt tab ngầm trong cửa sổ chứa nó (không cướp focus cửa sổ hệ điều hành)
             try {
               await chrome.tabs.update(activeTab.id, { active: true });
-              if (activeTab.windowId) {
-                await chrome.windows.update(activeTab.windowId, { focused: true });
-              }
-              await new Promise(r => setTimeout(r, 350));
+              await new Promise(r => setTimeout(r, 200));
             } catch (e) {
-              console.log('⚠️ [Bridge BG] Không thể kích hoạt tab/cửa sổ:', e.message);
+              console.log('⚠️ [Bridge BG] Không thể kích hoạt tab ngầm:', e.message);
             }
 
             console.log(`[Bridge BG] Đang gửi lệnh tới tab ${provider.name} ID: ${activeTab.id}`);
