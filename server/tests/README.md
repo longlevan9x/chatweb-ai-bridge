@@ -14,7 +14,8 @@ Tài liệu này giải thích chi tiết mục đích, cơ chế hoạt động
 | `session` | **Hybrid Session & Auto-Recycle** | Quản lý phiên theo ID & tự làm mới DOM khi quá ngưỡng | `POST /ask` (kèm `sessionId`, `maxTurns: 2`) | Lượt 2 nhớ bí mật, Lượt 3 tự kích hoạt `{ recycled: true }` |
 | `stress` | **Queue Concurrency** | Kiểm tra Task Queue tuần tự hóa requests đồng thời | `POST /ask` (3 tasks đồng thời) | 100% requests thành công, không xung đột tab |
 | `openai` | **OpenAI API Compat** | Kiểm tra chuẩn tương thích SDK OpenAI | `POST /v1/chat/completions` | HTTP 200, đúng schema `{ choices: [...] }` |
-| `all` | **Comprehensive Suite** | Chạy liên hoàn toàn bộ 6 kịch bản tự động | Tất cả các endpoints trên | Đạt 6/6 bài test (100%) |
+| `vision` | **Multimodal Vision** | Phân tích & trích xuất JSON từ hình ảnh hóa đơn thực tế | `POST /v1/chat/completions` (`image_url`) | Trích xuất chính xác số tiền, invoice #, customer |
+| `all` | **Comprehensive Suite** | Chạy liên hoàn toàn bộ kịch bản tự động | Tất cả các endpoints trên | Đạt 100% bài test |
 | `chat` | **Interactive CLI REPL**| Hội thoại 2 chiều trực tiếp trong terminal | `POST /ask` | Chat liên tục, giữ mạch trao đổi |
 | `health`| **System Diagnostics** | Chẩn đoán WebSocket & trạng thái hàng đợi | `GET /status` | `connected: true`, `queueLength: 0` |
 
@@ -88,7 +89,7 @@ Tài liệu này giải thích chi tiết mục đích, cơ chế hoạt động
 
 ---
 
-### 5. `openai` — OpenAI API Compatibility Layer (`/v1/chat/completions`)
+### 6. `openai` — OpenAI API Compatibility Layer (`/v1/chat/completions`)
 * **Mục đích:** Cho phép bất kỳ công cụ hoặc thư viện nào hỗ trợ OpenAI API (như **Cursor**, **Cline**, **Continue.dev**, **LangChain**, **LlamaIndex**, **Aider**) cắm trực tiếp vào Bridge mà không cần sửa code.
 * **Cơ chế hoạt động:**
   * Nhận request chuẩn OpenAI:
@@ -119,13 +120,42 @@ Tài liệu này giải thích chi tiết mục đích, cơ chế hoạt động
 
 ---
 
-### 6. `chat` — Interactive CLI Chat REPL
+### 7. `vision` — Multimodal Vision & Structured OCR Extraction
+* **Mục đích:** Kiểm tra khả năng gửi hình ảnh thực tế (Base64 hoặc URL) qua chuẩn OpenAI Vision (`messages[].content: [{type: "image_url"}, {type: "text"}]`), yêu cầu AI đọc hiểu thị giác và trích xuất dữ liệu JSON có cấu trúc.
+* **Cơ chế hoạt động:**
+  ```mermaid
+  sequenceDiagram
+    participant TestVision as Test Vision Runner
+    participant Server as Bridge Server (:9603)
+    participant Extension as Extension (Content Script)
+    participant AIWeb as ChatGPT / Gemini Web
+
+    TestVision->>Server: POST /v1/chat/completions (kèm image_url & prompt OCR)
+    Server->>Extension: WS ASK { prompt, images: ["data:image/png;base64,..."] }
+    Extension->>Extension: Convert Base64 sang PNG Blob
+    Extension->>Extension: Ghi vào System Clipboard (navigator.clipboard.write)
+    Extension->>AIWeb: Focus ô soạn thảo & Dispatch Native Paste / File Input
+    AIWeb-->>Extension: Hiển thị thumbnail ảnh đã đính kèm thành công
+    Extension->>AIWeb: Nhập text prompt & Click nút Send
+    AIWeb-->>Extension: Stream JSON kết quả trích xuất hóa đơn
+    Extension->>Server: WS COMPLETE { answer: "```json { ... } ```" }
+    Server->>TestVision: HTTP 200 { choices: [...] }
+  ```
+* **Kịch bản thực tế:** File test `server/tests/test-vision.js` tự động tạo hóa đơn mẫu `sample-invoice.jpg` (INV-2024-001, $1,320.00), gửi tới AI và validate chuỗi JSON trả về xem có đọc đúng số tiền, ngày lập và tên khách hàng không.
+* **Tiêu chuẩn đánh giá:**
+  * Ảnh được đính kèm vào khung chat thành công (không timeout, không lỗi `isTrusted: false`).
+  * AI trả về đúng định dạng JSON trích xuất hợp lệ với độ chính xác 100%.
+* **Khi nào nên dùng:** Khi xây dựng các pipeline OCR hóa đơn, phân tích biểu đồ, đọc mã vạch/QR, hoặc trích xuất thông tin giấy tờ tự động.
+
+---
+
+### 8. `chat` — Interactive CLI Chat REPL
 * **Mục đích:** Sử dụng ChatGPT như một ứng dụng dòng lệnh (CLI App) ngay trong Terminal của lập trình viên.
 * **Đặc điểm:** Tự động giữ phiên hội thoại liên tục (`newChat: false`), có hỗ trợ gõ `exit` hoặc `quit` để thoát.
 
 ---
 
-### 7. `health` — System Diagnostics & WebSocket Monitor
+### 9. `health` — System Diagnostics & WebSocket Monitor
 * **Mục đích:** Kiểm tra tức thì tình trạng kết nối của hệ thống:
   * Server Node.js có đang chạy không?
   * Extension Chrome đã kết nối WebSocket với Server chưa?
@@ -147,9 +177,15 @@ npm test context
 npm test stress
 npm test openai
 
-# 3. Chạy toàn bộ 5 bài test tự động
-npm test all
+# 3. Chạy kịch bản Multimodal Vision (Phân tích hình ảnh thực tế)
+npm run test:vision                     # Mặc định (ChatGPT)
+npm run test:vision chatgpt             # Chỉ định ChatGPT
+npm run test:vision gemini              # Chỉ định Gemini
+npm run test:vision gemini --stream     # Gemini với SSE Streaming
 
-# 4. Bật chế độ tương tác (nhấn TAB để tự hoàn thành câu lệnh)
+# 4. Chạy toàn bộ test suites tự động xác thực toàn hệ thống
+npm run test:verify                     # Chạy 8/8 bài test toàn diện
+
+# 5. Bật chế độ tương tác (nhấn TAB để tự hoàn thành câu lệnh)
 npm test
 ```

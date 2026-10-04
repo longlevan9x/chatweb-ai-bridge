@@ -215,6 +215,18 @@ sequenceDiagram
   - Theo dõi `activeSessions` tách biệt hoàn toàn cho từng provider: `{ chatgpt: 'session-A', gemini: 'session-B' }`.
   - Áp dụng cơ chế **LRU Eviction (giới hạn tối đa 2000 sessions)** kết hợp định kỳ dọn dẹp TTL 30 phút, chống rò rỉ bộ nhớ RAM trên server dài hạn.
 
+### 4.10. Vấn đề: Nạp Hình Ảnh Multimodal Vision & Vượt Rào Cản Trusted Clipboard
+* **Nguyên nhân:** 
+  - Các trang web LLM hiện đại (Google Gemini, ChatGPT) ngăn chặn việc chèn file/ảnh bằng sự kiện nhân tạo (`new ClipboardEvent('paste')` hoặc `DragEvent('drop')`) vì thuộc tính bảo mật `isTrusted === false`.
+  - Thẻ `<input type="file">` của các framework Lit/Angular/React thường ghi đè thuộc tính setter khiến việc gán `input.files = dt.files` không phát sinh sự kiện nội bộ.
+  - Quá trình tải ảnh lên máy chủ kéo dài hơn 15 giây khiến bộ đếm `safetyTimer` của `InputMutex` dễ bị ngắt sớm.
+* **Giải pháp đã thực thi trong `image-handler.js`, `content-gemini.js`, `content.js` & `background.js`:**
+  - **Chuẩn hóa Vision Pipeline (`image-handler.js`)**: Trích xuất ảnh từ OpenAI format (`messages[].content`), tải URL hoặc nhận Base64 Data URL, chuyển đổi đồng nhất thành mảng Base64 chuẩn hóa.
+  - **Ghi trực tiếp vào System Clipboard của OS**: Yêu cầu quyền `"clipboardWrite"`, `"clipboardRead"` trong Manifest V3. Tiện ích tự động ghi Blob ảnh `image/png` vào clipboard hệ điều hành thông qua `navigator.clipboard.write([new ClipboardItem(...)])`.
+  - **Prototype File Setter**: Sử dụng `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'files').set.call(input, dt.files)` và phát sự kiện `change` với cờ `composed: true` để xuyên qua Shadow DOM của Google Lit component.
+  - **Dynamic InputMutex Timeout**: Tự động mở rộng thời gian giữ khóa an toàn lên **60 giây** khi phát hiện tác vụ có đính kèm ảnh (`msg.images.length > 0`), đảm bảo thanh tiến trình upload của Gemini hoàn tất 100% trước khi nhấn Send.
+  - **UX Dashboard Toàn Diện**: Lắng nghe `paste` trên toàn bộ cửa sổ (`window`) và hỗ trợ Drag & Drop trực tiếp vào Dashboard.
+
 ---
 
 ## 5. Quy Chuẩn Giao Thức Truyền Tin (Message Protocols)
@@ -227,8 +239,11 @@ sequenceDiagram
   "id": "req_1710000000_abc12",
   "action": "ASK",
   "prompt": "Nội dung câu hỏi...",
+  "images": ["data:image/jpeg;base64,..."],
+  "provider": "gemini",
   "newChat": true,
-  "stream": true
+  "stream": true,
+  "timeout": 180000
 }
 ```
 

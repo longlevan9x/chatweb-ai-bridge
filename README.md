@@ -7,6 +7,7 @@
 ## 🌟 Tính Năng Nổi Bật
 
 - **Dual-Provider Power (ChatGPT & Gemini)**: Hỗ trợ chuyển đổi linh hoạt giữa **ChatGPT** và **Google Gemini** chỉ bằng một tham số `provider: "gemini"|"chatgpt"` hoặc thông qua model name.
+- **Multimodal Vision (Phân Tích Hình Ảnh Đa Phương Tiện)**: Hỗ trợ gửi kèm hình ảnh (PNG, JPG, WEBP, GIF, Base64 Data URL) vào cả **ChatGPT Web** và **Google Gemini Web** theo chuẩn OpenAI Vision format (`messages[].content: [{type: 'text'}, {type: 'image_url'}]`). Tự động ghi ảnh vào System Clipboard của OS và nạp qua Prototype File Setter.
 - **Zero API Cost**: Sử dụng trực tiếp tài khoản ChatGPT và Google Gemini đang đăng nhập trên trình duyệt Chrome, không cần API Key, không tốn phí token.
 - **Tương thích chuẩn OpenAI API**: Endpoint `/v1/chat/completions` & `/v1/models` cho phép cắm trực tiếp vào **Cursor, Cline, Aider, LangChain, LlamaIndex, Continue.dev**. Tự động định tuyến sang Gemini khi chọn model `gemini-2.0-flash`, `gemini-1.5-pro`...
 - **Real-time Token Streaming**: Hỗ trợ Server-Sent Events (SSE) qua `/ask/stream` và `/v1/chat/completions?stream=true`.
@@ -27,17 +28,19 @@
 ```text
 chatweb-ai-bridge/
 ├── server/
-│   ├── package.json                  # Cấu hình scripts ("start", "test")
+│   ├── package.json                  # Cấu hình scripts ("start", "test", "test:vision")
 │   ├── server.js                     # Core Express Server (REST API, SSE, WSS, OpenAI compat, Multi-provider)
 │   ├── queue.js                      # FIFO Task Queue Engine (Concurrency=1, Provider Routing, Metrics)
 │   ├── session-manager.js            # Quản lý Hybrid Session, cách ly phiên & Auto-Recycle DOM
+│   ├── image-handler.js              # Xử lý Base64, Data URL & giải mã đa phương tiện (Vision Handler)
 │   └── tests/                        # Toàn bộ mã nguồn kiểm thử tập trung
 │       ├── test-runner.js            # Universal Test Runner & Interactive CLI REPL (7 kịch bản test)
+│       ├── test-vision.js            # E2E Test phân tích & trích xuất hóa đơn Multimodal Vision
 │       ├── test-ask.js               # Test gửi 1 câu hỏi cơ bản
 │       ├── test-batch.js             # Test bắn đồng thời nhiều câu hỏi
 │       ├── test-openai-compat.js     # Test tương thích chuẩn OpenAI SDK
 │       ├── advanced-test.js          # Test hiệu năng và đo lường latency
-│       ├── verify-bridge.js          # Test tích hợp E2E toàn diện
+│       ├── verify-bridge.js          # Test tích hợp E2E toàn diện (8 bài test)
 │       └── README.md                 # Hướng dẫn chi tiết từng loại test
 ├── extension/
 │   ├── manifest.json                 # Chrome Manifest V3 (hỗ trợ chatgpt.com & gemini.google.com)
@@ -139,6 +142,35 @@ for chunk in stream:
         print(chunk.choices[0].delta.content, end="", flush=True)
 ```
 
+### 3. Gọi Multimodal Vision — Phân Tích Hình Ảnh (Chuẩn OpenAI Vision)
+
+Gửi ảnh (Base64 Data URL hoặc HTTP URL) kèm lời nhắc để AI đọc và trích xuất dữ liệu:
+
+```javascript
+// Gửi hóa đơn/ảnh chụp màn hình cho Google Gemini hoặc ChatGPT
+const res = await fetch('http://localhost:9603/v1/chat/completions', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    model: 'gemini', // hoặc 'chatgpt'
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Hãy đọc hóa đơn này và trích xuất tổng số tiền dạng JSON.' },
+          {
+            type: 'image_url',
+            image_url: { url: 'data:image/jpeg;base64,...' }
+          }
+        ]
+      }
+    ]
+  })
+});
+const data = await res.json();
+console.log(data.choices[0].message.content);
+```
+
 ---
 
 ## 🧪 Hệ Thống Kiểm Thử Toàn Diện (Interactive Test Runner)
@@ -159,10 +191,15 @@ npm test stress   # Bắn đồng thời 3 câu hỏi kiểm tra Task Queue
 npm test openai   # Kiểm thử tương thích chuẩn OpenAI API
 npm test all      # Chạy liên hoàn toàn bộ 7 bài test tự động
 
-# 3. Chế độ chat trực tiếp từ Terminal
+# 3. Kiểm thử Multimodal Vision (Phân tích hóa đơn thực tế qua ảnh):
+npm run test:vision           # Mặc định test trên Google Gemini
+npm run test:vision chatgpt   # Test trên ChatGPT Web
+npm run test:vision gemini --stream  # Test streaming token qua SSE
+
+# 4. Chế độ chat trực tiếp từ Terminal
 npm test chat
 
-# 4. Chế độ tương tác REPL (hỗ trợ phím TAB tự động điền lệnh và gợi ý lỗi gõ)
+# 5. Chế độ tương tác REPL (hỗ trợ phím TAB tự động điền lệnh và gợi ý lỗi gõ)
 npm test
 ```
 

@@ -556,11 +556,12 @@ async function initWebSocket() {
           // 🔒 CHỜ & LẤY INPUT MUTEX TRƯỚC KHI ACTIVE TAB HOẶC ĐIỀN PROMPT
           console.log(`🔒 [Bridge BG] [${provider.name}] Chờ Input Mutex để điều khiển tab (Task: ${msg.id})...`);
           const releaseInputLock = await inputMutex.acquire(provider.name, msg.id);
-          console.log(`🔑 [Bridge BG] [${provider.name}] Đã lấy Input Mutex! Bắt đầu kích hoạt tab và điền prompt.`);
+          const hasImages = Array.isArray(msg.images) && msg.images.length > 0;
+          const safetyTimeoutMs = hasImages ? 60000 : 30000;
           const safetyTimer = setTimeout(() => {
-            console.log(`⚠️ [Bridge BG] [${provider.name}] Quá 15s chưa nhận INPUT_SUBMITTED, tự động nhả Input Mutex an toàn.`);
+            console.log(`⚠️ [Bridge BG] [${provider.name}] Quá ${safetyTimeoutMs / 1000}s chưa nhận INPUT_SUBMITTED, tự động nhả Input Mutex an toàn.`);
             releaseInputLock();
-          }, 15000);
+          }, safetyTimeoutMs);
 
           try {
             // Nếu yêu cầu newChat: true và tab hiện tại đang ở trong 1 cuộc trò chuyện
