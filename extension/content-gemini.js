@@ -16,15 +16,16 @@
   });
 
   // Tránh nạp đè nếu script cùng version vẫn còn sống; nếu version mới hơn hoặc script cũ chết thì cho phép nạp mới
-  const SCRIPT_VERSION = '1.2.0';
+  const SCRIPT_VERSION = '1.3.0';
   if (window.__GEMINI_BRIDGE_LOADED__ && window.__GEMINI_BRIDGE_VERSION__ === SCRIPT_VERSION && window.__GEMINI_BRIDGE_IS_ALIVE__ && window.__GEMINI_BRIDGE_IS_ALIVE__()) {
     console.log('ℹ️ [Gemini Bridge] Content Script cùng phiên bản đã tồn tại, bỏ qua injection trùng lặp.');
     return;
   }
   window.__GEMINI_BRIDGE_LOADED__ = true;
   window.__GEMINI_BRIDGE_VERSION__ = SCRIPT_VERSION;
+  window.__GEMINI_BRIDGE_IS_ALIVE__ = isExtensionValid;
 
-  console.log('🚀 [Gemini Bridge v1.0] Content Script nạp thành công trên tab Google Gemini.');
+  console.log('🚀 [Gemini Bridge v1.3] Content Script nạp thành công trên tab Google Gemini.');
 
   // Wrapper gửi tin an toàn tuyệt đối, không bao giờ ném Uncaught Error khi extension reload
   const safeSendMessage = UTILS.safeSendMessage || ((message) => {
@@ -409,23 +410,28 @@
   }
 
   // Kích hoạt gửi câu hỏi với cơ chế kiểm tra đa tầng isSent
-  async function triggerSendGemini(editor, initialCount = 0) {
+  async function triggerSendGemini(editor, initialCount = 0, initialQueryCount = 0) {
     const maxWaitMs = 15000;
     const startTime = Date.now();
     let nudged = false;
     let clickSent = false;
+    let enterSent = false;
     let lastReportedStatus = '';
 
     const isSent = () => {
       // 1. Trạng thái sinh hoặc nút Stop hoặc pending-request/thinking-dots đã xuất hiện
       if (isGeminiGenerating()) return true;
 
-      // 2. Text trong ô soạn thảo đã được dọn sạch hoàn toàn sau khi bấm gửi
-      const textRemaining = (editor.textContent || editor.innerText || '').trim();
-      if (textRemaining.length === 0 && clickSent) return true;
+      // 2. Thẻ user-query mới đã xuất hiện trong thread (chứng minh 100% tin nhắn đã được gửi lên hệ thống)
+      const currentQueryCount = document.querySelectorAll('user-query').length;
+      if (currentQueryCount > initialQueryCount) return true;
 
       // 3. Số lượng thẻ model-response đã tăng thêm
       if (queryAllAny(SELECTORS.modelResponse).length > initialCount) return true;
+
+      // 4. Text trong ô soạn thảo đã được dọn sạch hoàn toàn sau khi bấm gửi
+      const textRemaining = (editor.textContent || editor.innerText || '').trim();
+      if (clickSent && (textRemaining.length === 0 || textRemaining === '\n' || textRemaining === '\u200B')) return true;
 
       return false;
     };
@@ -450,8 +456,8 @@
             sendBtn.focus();
             sendBtn.click();
 
-            // Cho Gemini ít nhất 800ms để chuyển sang trạng thái pending
-            await sleep(800);
+            // Cho Gemini ít nhất 600ms để chuyển sang trạng thái pending
+            await sleep(600);
             continue;
           }
         } else {
@@ -461,27 +467,29 @@
             reportProgress(msg);
           }
         }
-      } else {
-        const elapsed = Math.round((Date.now() - startTime) / 1000);
+      }
 
-        if (elapsed >= 2 && !nudged) {
-          nudged = true;
-          reportProgress('⚡ Đang kích thích ô soạn thảo để hiện nút Gửi...');
-          editor.focus();
-          document.execCommand('insertText', false, ' ');
-          document.execCommand('delete', false, null);
-          editor.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
-        }
+      const elapsed = Math.round((Date.now() - startTime) / 1000);
 
-        // Fallback duy nhất khi không tìm thấy nút Send sau 4 giây: Bấm Enter trên editor
-        if (elapsed >= 4 && !clickSent) {
-          editor.focus();
-          const enterOpts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true, shiftKey: false };
-          editor.dispatchEvent(new KeyboardEvent('keydown', enterOpts));
-          editor.dispatchEvent(new KeyboardEvent('keyup', enterOpts));
-          clickSent = true;
-          await sleep(800);
-        }
+      // Kích thích ô soạn thảo nếu nút Send chưa sáng
+      if (elapsed >= 2 && !nudged) {
+        nudged = true;
+        reportProgress('⚡ Đang kích thích ô soạn thảo để hiện nút Gửi...');
+        editor.focus();
+        document.execCommand('insertText', false, ' ');
+        document.execCommand('delete', false, null);
+        editor.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+      }
+
+      // Fallback: Nếu đã click send mà sau 2s chưa thấy gửi, hoặc không tìm thấy nút Send -> Bấm Enter trên editor
+      if (elapsed >= 2 && !enterSent) {
+        enterSent = true;
+        reportProgress('⚡ Kích hoạt phím Enter trên ô soạn thảo...');
+        editor.focus();
+        const enterOpts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true, shiftKey: false };
+        editor.dispatchEvent(new KeyboardEvent('keydown', enterOpts));
+        editor.dispatchEvent(new KeyboardEvent('keyup', enterOpts));
+        await sleep(600);
       }
 
       await sleep(350);
@@ -676,24 +684,15 @@
           }
           stableCount = 0;
         } else if (hasStarted) {
-          // AI không còn hiển thị animation/stop/pending nữa
-          const uqCount = document.querySelectorAll('user-query').length;
-          const mrCount = document.querySelectorAll('model-response').length;
-
-          // Nếu số user-query vẫn nhiều hơn model-response -> Gemini vẫn chưa sinh xong response cho lượt này
-          if (uqCount > 0 && uqCount > mrCount) {
-            stableCount = 0;
-            return;
-          }
-
+          // AI không còn hiển thị animation/stop/pending nữa -> Theo dõi ổn định văn bản để hoàn tất
           if (isNewTurn && currentText.length > 0) {
             if (currentText === lastText) {
               stableCount++;
 
               // Ngưỡng ổn định văn bản:
-              // - Đã thấy stop/shimmer/thinking: cần text đứng yên ít nhất 4 nhịp (~1.8s)
-              // - Chưa thấy stop/shimmer: cần text đứng yên ít nhất 6 nhịp (~2.7s) để chống rớt chunk
-              const requiredCount = seenGenerating ? 4 : 6;
+              // - Đã thấy stop/shimmer/thinking: cần text đứng yên ít nhất 3 nhịp (~1.3s)
+              // - Chưa thấy stop/shimmer: cần text đứng yên ít nhất 5 nhịp (~2.2s) để chống rớt chunk
+              const requiredCount = seenGenerating ? 3 : 5;
 
               if (stableCount >= requiredCount) {
                 const sendBtn = findGeminiSendButton();
@@ -1071,10 +1070,11 @@
       await waitForGeminiImageUpload();
     }
 
-    // Ghi nhận phản hồi trước đó để phân biệt câu trả lời mới
+    // Ghi nhận phản hồi và số lượng câu hỏi trước đó để phân biệt câu trả lời mới
     const initialResponses = queryAllAny(SELECTORS.modelResponse);
     const initialCount = initialResponses.length;
     const initialLastText = initialCount > 0 ? extractGeminiMarkdown(initialResponses[initialCount - 1]) : '';
+    const initialQueryCount = document.querySelectorAll('user-query').length;
 
     // 0.1. Nếu có hình ảnh đính kèm, tải ảnh lên trước khi điền văn bản
     if (Array.isArray(request.images) && request.images.length > 0) {
@@ -1084,8 +1084,8 @@
     // 1. Nhập prompt
     await enterTextIntoGemini(editor, request.prompt);
 
-    // 2. Kích hoạt gửi câu hỏi với cơ chế kiểm tra đa tầng isSent
-    await triggerSendGemini(editor, initialCount);
+    // 2. Kích hoạt gửi câu hỏi với cơ chế kiểm tra đa tầng isSent (kèm số lượng user-query)
+    await triggerSendGemini(editor, initialCount, initialQueryCount);
 
     // 2.1. Báo cho Background biết đã gửi câu hỏi thành công để nhả Input Mutex (chuyển giao cho provider khác nhập liệu)
     safeSendMessage({ action: 'INPUT_SUBMITTED', id: request.id, provider: 'gemini' });
@@ -1097,8 +1097,19 @@
   // Chuỗi xử lý tuần tự (FIFO Chain) bảo đảm không bao giờ gọi đè hoặc spam tác vụ trên tab
   let executionChain = Promise.resolve();
 
+  // 1. Gỡ bỏ listener cũ nếu có trên window để triệt tiêu hoàn toàn nguy cơ duplicate listener
+  if (window.__GEMINI_BRIDGE_MSG_LISTENER__) {
+    try {
+      chrome.runtime.onMessage.removeListener(window.__GEMINI_BRIDGE_MSG_LISTENER__);
+    } catch (_) {}
+  }
+
+  // 2. Cache các task ID đã và đang xử lý để loại trừ hoàn toàn việc chạy lặp
+  const processedGeminiTasks = window.__GEMINI_PROCESSED_TASKS__ || new Set();
+  window.__GEMINI_PROCESSED_TASKS__ = processedGeminiTasks;
+
   // Lắng nghe Message từ Background Service Worker
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  const geminiMsgListener = (request, sender, sendResponse) => {
     if (request.action === 'PING' || request.action === 'CHECK_ACCOUNT') {
       reportGeminiAccount();
       sendResponse({ action: 'PONG', provider: 'gemini', version: '1.0' });
@@ -1119,6 +1130,17 @@
     }
 
     if (request.action === 'ASK') {
+      // Chống xử lý trùng lặp nếu message bị gửi lặp do bất kỳ nguyên nhân nào
+      if (activeTaskId === request.id || processedGeminiTasks.has(request.id)) {
+        console.log(`ℹ️ [Gemini Bridge] Task ${request.id} đã hoàn thành hoặc đang xử lý, bỏ qua duplicate message.`);
+        return false;
+      }
+      processedGeminiTasks.add(request.id);
+      if (processedGeminiTasks.size > 200) {
+        const first = processedGeminiTasks.values().next().value;
+        processedGeminiTasks.delete(first);
+      }
+
       console.log('📥 [Gemini Bridge] Tiếp nhận yêu cầu ASK:', request.prompt?.slice(0, 50) + '... (ID: ' + request.id + ')');
 
       // Chèn vào hàng đợi tuần tự để xử lý từng lượt một, đợi lượt trước hoàn tất 100%
@@ -1158,7 +1180,10 @@
 
       return true; // Giữ async channel
     }
-  });
+  };
+
+  window.__GEMINI_BRIDGE_MSG_LISTENER__ = geminiMsgListener;
+  chrome.runtime.onMessage.addListener(geminiMsgListener);
 
   // Floating Badge cho tab Gemini (Tuân thủ TrustedHTML, tái sử dụng UTILS)
   function injectGeminiBadge() {
